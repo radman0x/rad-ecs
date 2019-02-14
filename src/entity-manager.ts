@@ -1,11 +1,11 @@
 
 import {HashTable, Hashable} from './hashtable';
 
-import {Component, ComponentConstructor} from './components';
+import {Component, ComponentConstructor} from './component';
 
 import { setIntersect } from './utils'
 
-export * from './components';
+export * from './component';
 
 
 export class Entity {

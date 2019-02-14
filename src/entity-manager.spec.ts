@@ -2,7 +2,7 @@
 import {} from 'jasmine';
 
 import {EntityManager, Entity } from './entity-manager';
-import {Component} from './components'
+import {Component} from './component'
 
 class Coord {
   constructor(
