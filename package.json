@@ -1,11 +1,12 @@
 {
   "name": "rad-ecs",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "A user friendly Entity Component System (ECS) library, written in Typescript.",
   "main": "dist/rad-ecs.js",
   "scripts": {
     "test": "karma start"
   },
+  "types": "dist/rad-ecs.d.ts",
   "keywords": ["ECS", "Entity", "Component", "System"],
   "author": "Conrad Mercer",
   "license": "MIT",

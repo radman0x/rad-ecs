@@ -28,7 +28,7 @@ export class Entity {
     }
   }
 
-  components(): Component[] {
+  allComponents(): Component[] {
     return Array.from(this.components_.values());
   }
 
@@ -118,6 +118,10 @@ export class EntityManager {
   matching(types: ComponentConstructor[]): Entity[] {
     return this.matchingIds(types).map( (id: number) => this.entities[id] );
   }
+  
+  each(types: ComponentConstructor[], callback: (e: Entity) => {}): void {
+    this.matchingIds(types).forEach( (id: number) => callback(this.entities[id]) );
+  }
 
   matchingIds(types: ComponentConstructor[]): number[] {
 
@@ -136,7 +140,7 @@ export class EntityManager {
       return false;
     }
 
-    for (const component of this.entities[id].components()) {
+    for (const component of this.entities[id].allComponents()) {
       this.housekeepRemoveComponent(id, component);
     }
 
@@ -195,7 +199,7 @@ export class EntityManager {
   }
 
   private excludeComponents(id: number, types: ComponentConstructor[]): Component[] {
-    return this.entities[id].components().filter( (c: Component) => types.indexOf(Object.getPrototypeOf(c).constructor) === -1 );
+    return this.entities[id].allComponents().filter( (c: Component) => types.indexOf(Object.getPrototypeOf(c).constructor) === -1 );
   }
 
   private checkEntity(id: number): void | never {

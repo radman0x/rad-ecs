@@ -236,6 +236,35 @@ describe('Entity Manager', () => {
       expect(em.getByComponentIndex(new Position(3, 3)).length).toEqual(1);
     });
   });
+
+  describe('Executing a lambda on matching components', () => {
+    beforeAll( () => {
+      em = new EntityManager();
+      em.createEntity( [new Position(1, 5)] );
+      em.createEntity( [new Position(1, 7)] );
+      em.createEntity( [new Position(1, 5), new Renderable('aoeu', 1)] );
+      em.createEntity( [new Renderable('uudd', 0), new Physical(Size.FILL)] );
+      em.createEntity( [new Renderable('uudd', 0), new Physical(Size.FILL), new Position(7, 7)] );
+    });
+
+    it('executes lambda on one matching component', () => {
+      let count = 0;
+      em.each( [Position], (e: Entity) => ++count );
+      expect(count).toEqual(4);
+    });
+
+    it('executes lambda on two matching components', () => {
+      let count = 0;
+      em.each( [Position, Renderable], (e: Entity) => ++count );
+      expect(count).toEqual(2);
+    });
+
+    it('executes lambda on three matching components', () => {
+      let count = 0;
+      em.each( [Position, Renderable, Physical], (e: Entity) => ++count );
+      expect(count).toEqual(1);
+    });
+  });
 });
 
 describe('Entity', () => {
