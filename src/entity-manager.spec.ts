@@ -28,7 +28,7 @@ class Coord {
 }
 
 class Position extends Component {
-  private coord_: Coord;
+  public coord_: Coord;
 
   constructor(x: number, y: number) {
     super();
@@ -103,7 +103,7 @@ describe('Entity Manager', () => {
       let emptyId: number;
       beforeEach( () => { 
         em = new EntityManager();
-        emptyId = em.createEntity( [] ).id(); 
+        emptyId = em.createEntity().id(); 
       });
       it('Creates an empty entity', () => {
         
@@ -126,24 +126,25 @@ describe('Entity Manager', () => {
       let initialisedId: number;
       beforeEach( () => {
         em = new EntityManager();
-        initialisedId = em.createEntity([
+        initialisedId = em.createEntity(
           new Position(7,7), 
-          new Physical(Size.FILL)] 
+          new Physical(Size.FILL)
         ).id();
       });
+
       it('Creates entity with component list', () => {
         expect(() => em.get(initialisedId)).not.toThrow();
-        expect(em.matchingIds( [Position] )).toContain(initialisedId);
-        expect(em.matchingIds( [Physical] )).toContain(initialisedId);
-        expect(em.matchingIds( [Physical, Position] )).toContain(initialisedId);
+        expect(em.matchingIds(Position)).toContain(initialisedId);
+        expect(em.matchingIds(Physical)).toContain(initialisedId);
+        expect(em.matchingIds(Physical, Position)).toContain(initialisedId);
       });
     
       it('Removes component list entity', () => {
         expect(em.removeEntity(initialisedId)).toBeTruthy();
         expect(() => em.get(initialisedId)).toThrow();
-        expect(em.matchingIds( [Position] )).not.toContain(initialisedId);
-        expect(em.matchingIds( [Physical] )).not.toContain(initialisedId);
-        expect(em.matchingIds( [Physical, Position] )).not.toContain(initialisedId);
+        expect(em.matchingIds(Position )).not.toContain(initialisedId);
+        expect(em.matchingIds(Physical )).not.toContain(initialisedId);
+        expect(em.matchingIds(Physical, Position)).not.toContain(initialisedId);
       });
     })
   
@@ -151,13 +152,13 @@ describe('Entity Manager', () => {
       let manualId: number;
       beforeEach( () => {
         em = new EntityManager();
-        manualId = em.createEntity( [] ).id();
+        manualId = em.createEntity().id();
         em.setComponent(manualId, new Position(1,1));
       });
 
       it('Creates entity by setting components manually' , () => {
         expect(() => em.get(manualId)).not.toThrow();
-        expect(em.matchingIds( [Position] )).toContain(manualId);
+        expect(em.matchingIds(Position)).toContain(manualId);
         expect(em.get(manualId).has(Position));
       });
     
@@ -174,34 +175,34 @@ describe('Entity Manager', () => {
   describe('Retrieving entities by component types', () => {
     beforeEach( () => {
       em = new EntityManager();
-      em.createEntity( [new Position(2, 2)] );
-      em.createEntity( [new Position(3, 3)] );
-      em.createEntity( [new Renderable('', 1)] );
-      em.createEntity( [new Physical(Size.FILL), new Position(11, 11)]);
+      em.createEntity(new Position(2, 2) );
+      em.createEntity(new Position(3, 3) );
+      em.createEntity(new Renderable('', 1) );
+      em.createEntity(new Physical(Size.FILL), new Position(11, 11));
     });
 
     it('Provides entities with 1 matching components', () => {
-      const posEntities = em.matching( [Position] );
+      const posEntities = em.matching(Position);
       expect(posEntities.length).toEqual(3);
     });
 
     it('Provides entities with 1 matching components again', () => {
-      const visEntities = em.matching( [Renderable] );
+      const visEntities = em.matching(Renderable);
       expect(visEntities.length).toEqual(1);
     });
 
     it('Provides entities with 2 matching components', () => {
-      const visEntities = em.matching( [Position, Physical] );
+      const visEntities = em.matching(Position, Physical);
       expect(visEntities.length).toEqual(1);
     });
 
     it(`Provides entities that don't exist`, () => {
-      const emptyEntities = em.matching( [MoveTo] );
+      const emptyEntities = em.matching(MoveTo);
       expect(emptyEntities.length).toEqual(0);
     });
 
     it('Replaces a component on an entity', () => {
-      const id = em.createEntity( [new Position(5,5)] ).id();
+      const id = em.createEntity(new Position(5,5)).id();
       em.setComponent(id, new Position(2,2));
       expect(em.get(id).component(Position).equals(new Position(2,2))).toBeTruthy();
     });
@@ -213,10 +214,10 @@ describe('Entity Manager', () => {
     let total: number;
     beforeAll( () => {
       em = new EntityManager();
-      em.createEntity( [new Position(1, 1)] );
-      em.createEntity( [new Position(2, 2)] );
-      em.createEntity( [new Position(3, 3)] );
-      em.createEntity( [new Position(1, 1)] );
+      em.createEntity(new Position(1, 1));
+      em.createEntity(new Position(2, 2));
+      em.createEntity(new Position(3, 3));
+      em.createEntity(new Position(1, 1));
       [unique, total] = em.indexBy(Position);
     });
 
@@ -240,40 +241,71 @@ describe('Entity Manager', () => {
   describe('Executing a lambda on matching components', () => {
     beforeAll( () => {
       em = new EntityManager();
-      em.createEntity( [new Position(1, 5)] );
-      em.createEntity( [new Position(1, 7)] );
-      em.createEntity( [new Position(1, 5), new Renderable('aoeu', 1)] );
-      em.createEntity( [new Renderable('uudd', 0), new Physical(Size.FILL)] );
-      em.createEntity( [new Renderable('uudd', 0), new Physical(Size.FILL), new Position(7, 7)] );
+      em.createEntity(new Position(1, 5));
+      em.createEntity(new Position(1, 7));
+      em.createEntity(new Position(1, 9), new Renderable('aoeu', 1) );
+      em.createEntity(new Renderable('uudd', 0), new Physical(Size.FILL) );
+      em.createEntity(new Renderable('uudd', 0), new Physical(Size.FILL), new Position(1, 11));
     });
 
     it('executes lambda on one matching component', () => {
       let count = 0;
-      em.each( [Position], (e: Entity) => ++count );
+      em.each((e: Entity, [p]: [Position]) => ++count, Position );
+      expect(count).toEqual(4);
+    });
+
+    it('executes lambda on one matching component AND accesses component', () => {
+      let count = 0;
+      em.each((e: Entity, [p]: [Position]) => {
+        ++count;
+        expect(p.x()).toEqual(1);
+      }, 
+      Position);
       expect(count).toEqual(4);
     });
 
     it('executes lambda on two matching components', () => {
       let count = 0;
-      em.each( [Position, Renderable], (e: Entity) => ++count );
+      em.each((e: Entity, [p, r]: [Position, Renderable]) => {
+        ++count;
+        // console.log(e);
+        console.log(p);
+        console.log(r);
+      }, Position, Renderable);
       expect(count).toEqual(2);
     });
 
     it('executes lambda on three matching components', () => {
       let count = 0;
-      em.each( [Position, Renderable, Physical], (e: Entity) => ++count );
+      em.each( (e: Entity, [p, r, y]: [Position, Renderable, Physical]) => ++count, Position, Renderable, Physical);
       expect(count).toEqual(1);
     });
   });
+
 });
 
 describe('Entity', () => {
-  const e = new Entity(-1, [new Position(5, 5), new Physical(Size.FILL)]);
+  let e: Entity;
+  beforeAll(() => {
+    e = new Entity(-1, [new Position(5, 5), new Physical(Size.FILL)]);
+  });
 
   it('Reports existence of components', () => {
     expect(e.has( [Position] )).toBeTruthy();
     expect(e.has( [Physical] )).toBeTruthy();
     expect(e.has( [Renderable] )).toBeFalsy();
+  });
+
+  it('Retrieves one component AND accesses', () => {
+    let [c] = e.components(Position);
+    expect(c.x()).toEqual(5);
+  });
+
+  it('Retrieves two component AND accesses', () => {
+    let [p, y] = e.components(Position, Physical);
+    expect(p.x()).toEqual(5);
+    expect(y.size).toEqual(Size.FILL);
+    
   });
 
 });

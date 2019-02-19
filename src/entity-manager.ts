@@ -19,13 +19,25 @@ export class Entity {
     }
   }
 
-  component<T_Constructor extends ComponentConstructor>(type: T_Constructor): InstanceType<T_Constructor> | never {
+  component<T extends ComponentConstructor>(type: T): InstanceType<T> | never {
     const c: Component | undefined = this.components_.get(type);
     if (c !== undefined) {
-      return <InstanceType<T_Constructor>> c;
+      return <InstanceType<T>> c;
     } else {
       throw Error(`Component requested: ${type.name} couldn't be found!`);
     }
+  }
+
+  components<T extends Array<ComponentConstructor>>(...types: T): {[K in keyof T]: T[K] extends ComponentConstructor ? InstanceType<T[K]> : never}
+  components(...types: any[]): any[]
+  {
+    return types.map( (t: ComponentConstructor) => {
+      let c = this.components_.get(t);
+      if ( ! c ) {
+        throw Error(`Component requested: ${t.name}, couldn't be found`);
+      }
+      return c;
+     });
   }
 
   allComponents(): Component[] {
@@ -66,7 +78,7 @@ export class EntityManager {
     this.componentValueEntities = new Map<ComponentConstructor, HashTable<Hashable>>();
   }
 
-  createEntity(components: Component[]): Entity {
+  createEntity(...components: Component[]): Entity {
     const id = this.currId++;
     const entity = new Entity(id, components);
     this.entities[id] = entity;
@@ -115,15 +127,22 @@ export class EntityManager {
     return (id in this.entities);
   }
 
-  matching(types: ComponentConstructor[]): Entity[] {
-    return this.matchingIds(types).map( (id: number) => this.entities[id] );
+  matching(...types: ComponentConstructor[]): Entity[] {
+    return this.matchingIds(...types).map( (id: number) => this.entities[id] );
   }
   
-  each(types: ComponentConstructor[], callback: (e: Entity) => {}): void {
-    this.matchingIds(types).forEach( (id: number) => callback(this.entities[id]) );
+  each(
+    callback: (e: Entity, ...c: any[]) => void,
+    ...types: ComponentConstructor[]): void {
+
+    let entity = 
+    this.matchingIds(...types).forEach( (id: number) => {
+      let e = this.entities[id];
+      callback(e, e.components(...types));
+     } );
   }
 
-  matchingIds(types: ComponentConstructor[]): number[] {
+  matchingIds(...types: ComponentConstructor[]): number[] {
 
     const working: Set<number>[] = types
       .filter( (type: ComponentConstructor) => this.componentEntities.has(type)! )

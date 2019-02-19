@@ -1,13 +1,18 @@
 {
   "name": "rad-ecs",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "description": "A user friendly Entity Component System (ECS) library, written in Typescript.",
   "main": "dist/rad-ecs.js",
   "scripts": {
     "test": "karma start"
   },
   "types": "dist/rad-ecs.d.ts",
-  "keywords": ["ECS", "Entity", "Component", "System"],
+  "keywords": [
+    "ECS",
+    "Entity",
+    "Component",
+    "System"
+  ],
   "author": "Conrad Mercer",
   "license": "MIT",
   "devDependencies": {
@@ -20,6 +25,7 @@
     "karma-chrome-launcher": "^2.2.0",
     "karma-jasmine": "^2.0.1",
     "karma-jasmine-html-reporter": "^1.4.0",
+    "typescript": "^3.1.6",
     "watchify": "^3.11.0"
   },
   "dependencies": {}
