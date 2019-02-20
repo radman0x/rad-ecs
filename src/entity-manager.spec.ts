@@ -94,6 +94,7 @@ class MoveTo extends Component {
  ) { super(); }
 }
 
+
 describe('Entity Manager', () => {
   let em: EntityManager;
   beforeAll( () => { em = new EntityManager() } );
@@ -246,6 +247,18 @@ describe('Entity Manager', () => {
       em.createEntity(new Position(1, 9), new Renderable('aoeu', 1) );
       em.createEntity(new Renderable('uudd', 0), new Physical(Size.FILL) );
       em.createEntity(new Renderable('uudd', 0), new Physical(Size.FILL), new Position(1, 11));
+    });
+
+    it('executes lambda on NO matching components', () => {
+      let count = 0;
+      em.each((e: Entity, [m]: [MoveTo]) => ++count, MoveTo );
+      expect(count).toEqual(0);
+    });
+
+    it('executes lambda on one matching components and one non existent component', () => {
+      let count = 0;
+      em.each((e: Entity, [p, m]: [Position, MoveTo]) => ++count, Position, MoveTo );
+      expect(count).toEqual(0);
     });
 
     it('executes lambda on one matching component', () => {

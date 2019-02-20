@@ -135,7 +135,6 @@ export class EntityManager {
     callback: (e: Entity, ...c: any[]) => void,
     ...types: ComponentConstructor[]): void {
 
-    let entity = 
     this.matchingIds(...types).forEach( (id: number) => {
       let e = this.entities[id];
       callback(e, e.components(...types));
@@ -144,10 +143,9 @@ export class EntityManager {
 
   matchingIds(...types: ComponentConstructor[]): number[] {
 
-    const working: Set<number>[] = types
-      .filter( (type: ComponentConstructor) => this.componentEntities.has(type)! )
-      .map( (type: ComponentConstructor) => this.componentEntities.get(type)! );
-    if (working.length !== 0) {
+    const working: Set<number>[] = types.filter( (type: ComponentConstructor) => this.componentEntities.has(type) )
+                                        .map( (type: ComponentConstructor) => this.componentEntities.get(type)! );
+    if (working.length !== 0 && working.length === types.length) {
       return Array.from(working.reduce( (accum: Set<number>, curr: Set<number>) => setIntersect(accum, curr) ));
     } else {
       return [];
