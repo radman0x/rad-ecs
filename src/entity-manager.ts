@@ -110,10 +110,18 @@ export class EntityManager {
       }
     }
     this.componentValueEntities.set(type, valueIndex);
-    return [valueIndex.countUnique(), count];
+    return [valueIndex.countKeys(), count];
   }
 
-  getByComponentIndex<T extends Component>(component: T): Entity[] {
+  hasIndex<T extends Component>(entityId: number, component: T): boolean {
+    const type = Object.getPrototypeOf(component).constructor;
+    return this.componentValueEntities.has(type) && this.componentValueEntities.get(type)!.hasValue(component, entityId);
+  }
+  countIndex<T extends Component>(component: T): number {
+    return this.matchingIndex(component).length;
+  }
+
+  matchingIndex<T extends Component>(component: T): Entity[] {
     const type = Object.getPrototypeOf(component).constructor;
     const typeEntities = this.componentValueEntities.get(type); 
     if ( ! typeEntities ) {
@@ -171,7 +179,11 @@ export class EntityManager {
 
   setComponent<T extends Component>(id: number, component: T): void | never {
     this.checkEntity(id);
-    const otherComponents = this.excludeComponents(id, [Object.getPrototypeOf(component).constructor]);
+    let componentType = Object.getPrototypeOf(component).constructor;
+    if ( this.entities[id].has(componentType) ) {
+      this.removeComponent(id, componentType);
+    }
+    const otherComponents = this.excludeComponents(id, [componentType]);
     this.entities[id] = new Entity(id, [...otherComponents, component]);
     this.housekeepAddComponent(id, component);
   }

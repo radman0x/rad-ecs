@@ -21,10 +21,18 @@ describe('HashTable', () => {
   it('Sets a value', () => {
     const value = 11;
     hashTable.add(new Example(1,1), value);
-    expect(() => hashTable.get(new Example(1,1))).not.toThrow();
     expect(hashTable.get(new Example(1,1))).toContain(value);
     expect(hashTable.has(new Example(1,1))).toBeTruthy();
     expect(hashTable.count(new Example(1,1))).toEqual(1);
+  });
+
+  it('Sets and then removes a value', () => {
+    const value = 7;
+    hashTable.add(new Example(1,1), value);
+    hashTable.remove(new Example(1,1), value);
+    expect(hashTable.get(new Example(1,1))).not.toContain(value);
+    expect(hashTable.has(new Example(1,1))).toBeFalsy();
+    expect(hashTable.count(new Example(1,1))).toEqual(0);
   });
 
   it('Sets and retrieves from a grid', () => {

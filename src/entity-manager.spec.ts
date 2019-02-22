@@ -143,8 +143,8 @@ describe('Entity Manager', () => {
       it('Removes component list entity', () => {
         expect(em.removeEntity(initialisedId)).toBeTruthy();
         expect(() => em.get(initialisedId)).toThrow();
-        expect(em.matchingIds(Position )).not.toContain(initialisedId);
-        expect(em.matchingIds(Physical )).not.toContain(initialisedId);
+        expect(em.matchingIds(Position)).not.toContain(initialisedId);
+        expect(em.matchingIds(Physical)).not.toContain(initialisedId);
         expect(em.matchingIds(Physical, Position)).not.toContain(initialisedId);
       });
     })
@@ -210,33 +210,53 @@ describe('Entity Manager', () => {
 
   });
 
-  describe('Using component values to retrieve entities', () => {
-    let unique: number;
-    let total: number;
-    beforeAll( () => {
+  describe('Using indexed component values to retrieve entities', () => {
+    let id1: number, id2: number, id3: number, id4: number;
+
+    beforeEach( () => {
       em = new EntityManager();
-      em.createEntity(new Position(1, 1));
-      em.createEntity(new Position(2, 2));
-      em.createEntity(new Position(3, 3));
-      em.createEntity(new Position(1, 1));
-      [unique, total] = em.indexBy(Position);
+      em.indexBy(Position);
+      id1 = em.createEntity(new Position(0, 0)).id();
+      em.setComponent(id1, new Position(1, 1));
+      id2 = em.createEntity(new Position(2, 2)).id();
+      id3 = em.createEntity(new Position(3, 3)).id();
+      id4 = em.createEntity(new Position(1, 1)).id();
+
     });
 
-    it(`Checks for correct number of entities`, () => {
-      expect(em.count()).toEqual(4);
+    it('Gets the number of entities with a component value', () => {
+      expect(em.countIndex(new Position(0, 0))).toEqual(0);
+      expect(em.countIndex(new Position(1, 1))).toEqual(2);
+      expect(em.countIndex(new Position(2, 2))).toEqual(1);
+      expect(em.countIndex(new Position(3, 3))).toEqual(1);
+    });
+
+    it('Retrieves entity by component value', () => {
+      expect(em.matchingIndex(new Position(0, 0)).length).toEqual(0);
+      expect(em.matchingIndex(new Position(1, 1)).map( (e: Entity) => e.id())).toContain(id1);
+      expect(em.matchingIndex(new Position(1, 1)).map( (e: Entity) => e.id())).toContain(id4);
+      expect(em.matchingIndex(new Position(2, 2)).map( (e: Entity) => e.id())).toContain(id2);
+      expect(em.matchingIndex(new Position(3, 3)).map( (e: Entity) => e.id())).toContain(id3);
+    });
+
+    it('Verifies if that an entity has as index value', () => {
+      expect(em.hasIndex(id1, new Position(1, 1))).toBeTruthy();
+      expect(em.hasIndex(id2, new Position(2, 2))).toBeTruthy();
+      expect(em.hasIndex(id3, new Position(3, 3))).toBeTruthy();
+      expect(em.hasIndex(id4, new Position(1, 1))).toBeTruthy();
+    });
+
+    it ('Retrieves by component value that was replaced', () => {
+      let changed = em.createEntity(new Position(5, 5));
+      em.setComponent(changed.id(), new Position(6, 6));
+      expect(em.matchingIndex(new Position(5, 5)).length).toEqual(0);
+    });
+
+    it ('Retrieves by component that replaces an old one', () => {
+      let changed = em.createEntity(new Position(5, 5));
+      em.setComponent(changed.id(), new Position(6, 6));
+      expect(em.matchingIndex(new Position(6, 6)).length).toEqual(1);
     })
-
-    it('Allows indexing by component value', () => {
-      let [unique, total] = em.indexBy(Position);
-      expect(unique).toEqual(3);
-      expect(total).toEqual(4);
-    });
-
-    it ('Retrieves entity by component value', () => {
-      expect(em.getByComponentIndex(new Position(1, 1)).length).toEqual(2);
-      expect(em.getByComponentIndex(new Position(2, 2)).length).toEqual(1);
-      expect(em.getByComponentIndex(new Position(3, 3)).length).toEqual(1);
-    });
   });
 
   describe('Executing a lambda on matching components', () => {
