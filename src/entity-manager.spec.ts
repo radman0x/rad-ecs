@@ -271,25 +271,25 @@ describe('Entity Manager', () => {
 
     it('executes lambda on NO matching components', () => {
       let count = 0;
-      em.each((e: Entity, [m]: [MoveTo]) => ++count, MoveTo );
+      em.each((e: Entity, m: MoveTo) => ++count, MoveTo );
       expect(count).toEqual(0);
     });
 
     it('executes lambda on one matching components and one non existent component', () => {
       let count = 0;
-      em.each((e: Entity, [p, m]: [Position, MoveTo]) => ++count, Position, MoveTo );
+      em.each((e: Entity, p: Position, m: MoveTo) => ++count, Position, MoveTo );
       expect(count).toEqual(0);
     });
 
     it('executes lambda on one matching component', () => {
       let count = 0;
-      em.each((e: Entity, [p]: [Position]) => ++count, Position );
+      em.each((e: Entity, p: Position) => ++count, Position );
       expect(count).toEqual(4);
     });
 
     it('executes lambda on one matching component AND accesses component', () => {
       let count = 0;
-      em.each((e: Entity, [p]: [Position]) => {
+      em.each((e: Entity, p: Position) => {
         ++count;
         expect(p.x()).toEqual(1);
       }, 
@@ -299,7 +299,7 @@ describe('Entity Manager', () => {
 
     it('executes lambda on two matching components', () => {
       let count = 0;
-      em.each((e: Entity, [p, r]: [Position, Renderable]) => {
+      em.each((e: Entity, p: Position, r: Renderable) => {
         ++count;
         // console.log(e);
         console.log(p);
@@ -310,7 +310,7 @@ describe('Entity Manager', () => {
 
     it('executes lambda on three matching components', () => {
       let count = 0;
-      em.each( (e: Entity, [p, r, y]: [Position, Renderable, Physical]) => ++count, Position, Renderable, Physical);
+      em.each( (e: Entity, p: Position, r: Renderable, y: Physical) => ++count, Position, Renderable, Physical);
       expect(count).toEqual(1);
     });
   });

@@ -7,6 +7,8 @@ import { setIntersect } from './utils'
 
 export * from './component';
 
+type Ctor<C> = new (...args: any[]) => C;
+type CtorsOf<T> = { [K in keyof T]: Ctor<T[K]> };
 
 export class Entity {
   private components_ = new Map<ComponentConstructor, Component>();
@@ -22,13 +24,15 @@ export class Entity {
   component<T extends ComponentConstructor>(type: T): InstanceType<T> | never {
     const c: Component | undefined = this.components_.get(type);
     if (c !== undefined) {
-      return <InstanceType<T>> c;
+      return c as InstanceType<T>;
     } else {
       throw Error(`Component requested: ${type.name} couldn't be found!`);
     }
   }
 
-  components<T extends Array<ComponentConstructor>>(...types: T): {[K in keyof T]: T[K] extends ComponentConstructor ? InstanceType<T[K]> : never}
+  components<T extends Array<ComponentConstructor>>(
+    ...types: T)
+    : {[K in keyof T]: T[K] extends ComponentConstructor ? InstanceType<T[K]> : never}
   components(...types: any[]): any[]
   {
     return types.map( (t: ComponentConstructor) => {
@@ -139,13 +143,16 @@ export class EntityManager {
     return this.matchingIds(...types).map( (id: number) => this.entities[id] );
   }
   
-  each(
-    callback: (e: Entity, ...c: any[]) => void,
-    ...types: ComponentConstructor[]): void {
+
+
+  each<T extends Component[]>(
+    callback: (e: Entity, ...c: T) => void,
+    ...types: CtorsOf<T>): void {
 
     this.matchingIds(...types).forEach( (id: number) => {
-      let e = this.entities[id];
-      callback(e, e.components(...types));
+      let entity = this.entities[id];
+      let instances = types.map( (t => entity.component(t) )) as T;
+      callback(entity, ...instances);
      } );
   }
 
