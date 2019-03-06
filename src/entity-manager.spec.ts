@@ -315,6 +315,38 @@ describe('Entity Manager', () => {
     });
   });
 
+  describe('Notifications for changes to entity', () => {
+    let monitorId: number;
+    beforeEach(() => {
+      em = new EntityManager();
+      monitorId = em.createEntity(new Position(1, 2)).id();
+    });
+
+    it('receives notifications on set component', () => {
+      em.monitorEntity(monitorId, (e: Entity | null) => {
+        expect(e).not.toBeNull();
+        expect(e!.component(Position).x()).toEqual(3);
+      });
+      em.setComponent(monitorId, new Position(3, 7));
+    });
+    
+    it('receives notification on component removal', () => {
+      em.monitorEntity(monitorId, (e: Entity | null) => {
+        expect(e).not.toBeNull();
+        expect(e!.has(Position)).toBeFalsy();
+      });
+      em.removeComponent(monitorId, Position);
+    });
+
+    it('receives notification on entity remove', () => {
+      em.monitorEntity(monitorId, (e: Entity | null) => {
+        expect(e).toBeNull();
+      });
+      em.removeEntity(monitorId);
+    });
+
+  });
+
 });
 
 describe('Entity', () => {

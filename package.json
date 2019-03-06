@@ -1,6 +1,6 @@
 {
   "name": "rad-ecs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A user friendly Entity Component System (ECS) library, written in Typescript.",
   "main": "dist/rad-ecs.js",
   "scripts": {
@@ -17,6 +17,7 @@
   "license": "MIT",
   "devDependencies": {
     "@types/jasmine": "^3.3.8",
+    "@types/rx": "^4.1.1",
     "browserify": "^16.2.3",
     "jasmine": "^3.3.1",
     "jasmine-core": "^3.3.0",
@@ -28,5 +29,7 @@
     "typescript": "^3.1.6",
     "watchify": "^3.11.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "rxjs": "^6.4.0"
+  }
 }

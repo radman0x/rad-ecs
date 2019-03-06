@@ -5,7 +5,10 @@ import {Component, ComponentConstructor} from './component';
 
 import { setIntersect } from './utils'
 
+import { Subscription, Observable, Subject } from 'rxjs';
+
 export * from './component';
+
 
 type Ctor<C> = new (...args: any[]) => C;
 type CtorsOf<T> = { [K in keyof T]: Ctor<T[K]> };
@@ -71,6 +74,7 @@ export class EntityManager {
   private entities: {[id: number]: Entity} = {};
   private componentEntities = new Map<ComponentConstructor, Set<number>>();
   private componentValueEntities = new Map<ComponentConstructor, HashTable<Hashable>>();
+  private entityRegistrations = new Map<number, Subject<Entity | null>>();
 
   constructor() {
   }
@@ -181,6 +185,10 @@ export class EntityManager {
       idIndex.delete(id);
     }
 
+    if ( this.entityRegistrations.has(id) ) {
+      this.entityRegistrations.get(id)!.next(null);
+    }
+
     return true;
   }
 
@@ -188,18 +196,33 @@ export class EntityManager {
     this.checkEntity(id);
     let componentType = Object.getPrototypeOf(component).constructor;
     if ( this.entities[id].has(componentType) ) {
-      this.removeComponent(id, componentType);
+      this.removeComponent(id, componentType, false);
     }
     const otherComponents = this.excludeComponents(id, [componentType]);
     this.entities[id] = new Entity(id, [...otherComponents, component]);
     this.housekeepAddComponent(id, component);
+    if ( this.entityRegistrations.has(id) ) {
+      this.entityRegistrations.get(id)!.next(this.entities[id]);
+    }
   }
 
-  removeComponent(id: number, type: ComponentConstructor): void | never {
+  removeComponent(id: number, type: ComponentConstructor, notify: boolean = true): void | never {
     this.checkEntity(id);
     const toRemove = this.entities[id].component(type);
     this.entities[id] = new Entity(id, this.excludeComponents(id, [type]));
     this.housekeepRemoveComponent(id, toRemove);
+    if ( notify && this.entityRegistrations.has(id) ) {
+      this.entityRegistrations.get(id)!.next(this.entities[id]);
+    }
+  }
+
+  monitorEntity(id: number, callback: (e: Entity | null) => void): Subscription {
+    if ( ! this.entityRegistrations.has(id) ) {
+      console.log(`setting registration on: ${id}`);
+      this.entityRegistrations.set(id, new Subject<Entity | null>());
+    }
+    console.log(`subscribing`);
+    return this.entityRegistrations.get(id)!.subscribe(callback);
   }
 
   clear(): void {
