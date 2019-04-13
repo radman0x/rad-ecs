@@ -1,7 +1,8 @@
+import { Entity } from './entity';
 
-import {HashTable, Hashable} from './hashtable';
+import { HashTable, Hashable } from './hashtable';
 
-import {Component, ComponentConstructor} from './component';
+import { Component, ComponentConstructor } from './component';
 
 import { setIntersect } from './utils'
 
@@ -13,60 +14,10 @@ export * from './component';
 type Ctor<C> = new (...args: any[]) => C;
 type CtorsOf<T> = { [K in keyof T]: Ctor<T[K]> };
 
-export class Entity {
-  private components_ = new Map<ComponentConstructor, Component>();
-  constructor(
-    private id_: number,
-    components: Component[]
-  ) {
-    for (const component of components) {
-      this.components_.set(Object.getPrototypeOf(component).constructor, component);
-    }
-  }
-
-  component<T extends ComponentConstructor>(type: T): InstanceType<T> | never {
-    const c: Component | undefined = this.components_.get(type);
-    if (c !== undefined) {
-      return c as InstanceType<T>;
-    } else {
-      throw Error(`Component requested: ${type.name} couldn't be found!`);
-    }
-  }
-
-  components<T extends Array<ComponentConstructor>>(
-    ...types: T)
-    : {[K in keyof T]: T[K] extends ComponentConstructor ? InstanceType<T[K]> : never}
-  components(...types: any[]): any[]
-  {
-    return types.map( (t: ComponentConstructor) => {
-      let c = this.components_.get(t);
-      if ( ! c ) {
-        throw Error(`Component requested: ${t.name}, couldn't be found`);
-      }
-      return c;
-     });
-  }
-
-  allComponents(): Component[] {
-    return Array.from(this.components_.values());
-  }
-
-  has(types: ComponentConstructor | ComponentConstructor[]): boolean {
-    if ( types instanceof Array) {
-      for (const type of types) {
-        if ( ! (this.components_.has(type)) ) {
-          return false;
-        }
-      }
-      return true;
-    } else {
-      return this.components_.has(types);
-    }
-  }
-
-  id(): number {
-    return this.id_;
-  }
+export interface ComponentChange<T extends Component> {
+  id: number,
+  e: Entity | null,
+  c: T | null
 }
 
 export class EntityManager {
@@ -75,6 +26,7 @@ export class EntityManager {
   private componentEntities = new Map<ComponentConstructor, Set<number>>();
   private componentValueEntities = new Map<ComponentConstructor, HashTable<Hashable>>();
   private entityRegistrations = new Map<number, Subject<Entity | null>>();
+  private componentRegistrations = new Map<ComponentConstructor, Subject<any>>();
 
   constructor() {
   }
@@ -150,7 +102,7 @@ export class EntityManager {
 
 
   each<T extends Component[]>(
-    callback: (e: Entity, ...c: T) => void,
+    callback: (e: Entity, ...component: T) => void,
     ...types: CtorsOf<T>): void {
 
     this.matchingIds(...types).forEach( (id: number) => {
@@ -176,17 +128,16 @@ export class EntityManager {
       return false;
     }
 
-    for (const component of this.entities[id].allComponents()) {
-      this.housekeepRemoveComponent(id, component);
-    }
+
+    let components = this.entities[id].allComponents();
 
     delete this.entities[id];
     for (const idIndex of this.componentEntities.values()) {
       idIndex.delete(id);
     }
 
-    if ( this.entityRegistrations.has(id) ) {
-      this.entityRegistrations.get(id)!.next(null);
+    for (const component of components) {
+      this.housekeepRemoveComponent(id, component, true);
     }
 
     return true;
@@ -201,19 +152,13 @@ export class EntityManager {
     const otherComponents = this.excludeComponents(id, [componentType]);
     this.entities[id] = new Entity(id, [...otherComponents, component]);
     this.housekeepAddComponent(id, component);
-    if ( this.entityRegistrations.has(id) ) {
-      this.entityRegistrations.get(id)!.next(this.entities[id]);
-    }
   }
 
   removeComponent(id: number, type: ComponentConstructor, notify: boolean = true): void | never {
     this.checkEntity(id);
     const toRemove = this.entities[id].component(type);
     this.entities[id] = new Entity(id, this.excludeComponents(id, [type]));
-    this.housekeepRemoveComponent(id, toRemove);
-    if ( notify && this.entityRegistrations.has(id) ) {
-      this.entityRegistrations.get(id)!.next(this.entities[id]);
-    }
+    this.housekeepRemoveComponent(id, toRemove, notify);
   }
 
   monitorEntity(id: number, callback: (e: Entity | null) => void): Subscription {
@@ -223,6 +168,16 @@ export class EntityManager {
     }
     console.log(`subscribing`);
     return this.entityRegistrations.get(id)!.subscribe(callback);
+  }
+
+  monitorComponentType<T_Constructor extends ComponentConstructor>(
+    type: T_Constructor, 
+    callback: (change: ComponentChange<InstanceType<T_Constructor>>) => void
+  ) {
+    if ( ! this.componentRegistrations.has(type) ) {
+      this.componentRegistrations.set(type, new Subject<ComponentChange<InstanceType<ComponentConstructor>>>());
+    }
+    this.componentRegistrations.get(type)!.subscribe(callback);
   }
 
   clear(): void {
@@ -245,9 +200,22 @@ export class EntityManager {
     if (this.componentValueEntities.has(type)) {
       this.componentValueEntities.get(type)!.add(component, id);
     }
+
+    if ( this.entityRegistrations.has(id) ) {
+      this.entityRegistrations.get(id)!.next(this.entities[id]);
+    }
+
+    const constructor = component.constructor as ComponentConstructor;
+    if ( this.componentRegistrations.has(constructor) ) {
+      (this.componentRegistrations.get(constructor) as Subject<ComponentChange<Component>>).next({
+        id: id,
+        e: this.entities[id],
+        c: component
+      });
+    }
   }
 
-  private housekeepRemoveComponent(id: number, component: Component): void {
+  private housekeepRemoveComponent(id: number, component: Component, notify: boolean): void {
     const type = Object.getPrototypeOf(component).constructor;
     if ( this.componentEntities.has(type) ) {
       this.componentEntities.get(type)!.delete(id);
@@ -255,10 +223,25 @@ export class EntityManager {
     if (this.componentValueEntities.has(type)) {
       this.componentValueEntities.get(type)!.remove(component, id);
     }
+    if (notify) {
+      let entityValue = this.entities[id] ? this.entities[id] : null;
+      if ( this.entityRegistrations.has(id) ) {
+        this.entityRegistrations.get(id)!.next(entityValue);
+      }
+  
+      const constructor = component.constructor as ComponentConstructor;
+      if ( this.componentRegistrations.has(constructor) ) {
+        (this.componentRegistrations.get(constructor) as Subject<ComponentChange<Component>>).next({
+          id: id,
+          e: entityValue,
+          c: null 
+        });
+      }
+    }
   }
 
   private excludeComponents(id: number, types: ComponentConstructor[]): Component[] {
-    return this.entities[id].allComponents().filter( (c: Component) => types.indexOf(Object.getPrototypeOf(c).constructor) === -1 );
+    return this.entities[id].allComponents().filter( (component: Component) => types.indexOf(Object.getPrototypeOf(component).constructor) === -1 );
   }
 
   private checkEntity(id: number): void | never {

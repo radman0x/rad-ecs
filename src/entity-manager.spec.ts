@@ -1,8 +1,9 @@
 
 import {} from 'jasmine';
 
-import {EntityManager, Entity } from './entity-manager';
+import {EntityManager, ComponentChange } from './entity-manager';
 import {Component} from './component'
+import { Entity } from './entity';
 
 class Coord {
   constructor(
@@ -315,19 +316,78 @@ describe('Entity Manager', () => {
     });
   });
 
+  describe('Notifications for create, update or delete of component type', () => {
+    let triggered: boolean;
+    let existingId: number;
+    beforeEach(() => {
+      em = new EntityManager();
+      existingId = em.createEntity( new Position(1,1) ).id();
+      triggered = false;
+    });
+
+    it('Receives notification from create entity', () => {
+      em.monitorComponentType(Position, (change: ComponentChange<Position>) => {
+        expect(change.id).not.toBeNull();
+        expect(change.c).not.toBeNull();
+        expect(change.e).not.toBeNull();
+        triggered = true;
+      });
+      em.createEntity( new Position(0, 0) );
+      expect(triggered).toBeTruthy();
+    });
+
+    it('Receives notification from remove entity with component', () => {
+      em.monitorComponentType(Position, (change: ComponentChange<Position>) => {
+        expect(change.id).toEqual(existingId);
+        expect(change.c).toBeNull();
+        expect(change.e).toBeNull();
+        triggered = true;
+      });
+      em.removeEntity(existingId);
+      expect(triggered).toBeTruthy();
+    });
+
+    it('Receives notifications from add component', () => {
+      const match = `match this`;
+      em.monitorComponentType(Renderable, (change: ComponentChange<Renderable>) => {
+        expect(change.id).toEqual(existingId);
+        expect(change.c!.image).toEqual(match);
+        expect(change.e).not.toBeNull();
+        triggered = true;
+      });
+      em.setComponent(existingId, new Renderable(match, 0));
+      expect(triggered).toBeTruthy();
+    });
+
+    it('Receives notification from remove component', () => {
+      em.monitorComponentType(Position, (change: ComponentChange<Position>) => {
+        expect(change.id).toEqual(existingId);
+        expect(change.c).toBeNull();
+        expect(change.e).not.toBeNull();
+        triggered = true;
+      });
+      em.removeComponent(existingId, Position);
+      expect(triggered).toBeTruthy();
+    });
+  });
+
   describe('Notifications for changes to entity', () => {
     let monitorId: number;
+    let triggered: boolean;
     beforeEach(() => {
       em = new EntityManager();
       monitorId = em.createEntity(new Position(1, 2)).id();
+      triggered = false;
     });
 
     it('receives notifications on set component', () => {
       em.monitorEntity(monitorId, (e: Entity | null) => {
         expect(e).not.toBeNull();
         expect(e!.component(Position).x()).toEqual(3);
+        triggered = true;
       });
       em.setComponent(monitorId, new Position(3, 7));
+      expect(triggered).toBeTruthy();
     });
     
     it('receives notification on component removal', () => {
