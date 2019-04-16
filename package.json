@@ -1,6 +1,6 @@
 {
   "name": "rad-ecs",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A user friendly Entity Component System (ECS) library, written in Typescript.",
   "main": "dist/rad-ecs.js",
   "scripts": {

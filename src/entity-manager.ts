@@ -16,8 +16,8 @@ type CtorsOf<T> = { [K in keyof T]: Ctor<T[K]> };
 
 export interface ComponentChange<T extends Component> {
   id: number,
-  e: Entity | null,
-  c: T | null
+  e?: Entity,
+  c?: T
 }
 
 export class EntityManager {
@@ -224,7 +224,7 @@ export class EntityManager {
       this.componentValueEntities.get(type)!.remove(component, id);
     }
     if (notify) {
-      let entityValue = this.entities[id] ? this.entities[id] : null;
+      let entityValue = this.entities[id];
       if ( this.entityRegistrations.has(id) ) {
         this.entityRegistrations.get(id)!.next(entityValue);
       }
@@ -233,8 +233,7 @@ export class EntityManager {
       if ( this.componentRegistrations.has(constructor) ) {
         (this.componentRegistrations.get(constructor) as Subject<ComponentChange<Component>>).next({
           id: id,
-          e: entityValue,
-          c: null 
+          e: entityValue 
         });
       }
     }

@@ -327,9 +327,9 @@ describe('Entity Manager', () => {
 
     it('Receives notification from create entity', () => {
       em.monitorComponentType(Position, (change: ComponentChange<Position>) => {
-        expect(change.id).not.toBeNull();
-        expect(change.c).not.toBeNull();
-        expect(change.e).not.toBeNull();
+        expect(change.id).not.toBeUndefined();
+        expect(change.c).not.toBeUndefined();
+        expect(change.e).not.toBeUndefined();
         triggered = true;
       });
       em.createEntity( new Position(0, 0) );
@@ -339,8 +339,8 @@ describe('Entity Manager', () => {
     it('Receives notification from remove entity with component', () => {
       em.monitorComponentType(Position, (change: ComponentChange<Position>) => {
         expect(change.id).toEqual(existingId);
-        expect(change.c).toBeNull();
-        expect(change.e).toBeNull();
+        expect(change.c).toBeUndefined();
+        expect(change.e).toBeUndefined();
         triggered = true;
       });
       em.removeEntity(existingId);
@@ -352,7 +352,7 @@ describe('Entity Manager', () => {
       em.monitorComponentType(Renderable, (change: ComponentChange<Renderable>) => {
         expect(change.id).toEqual(existingId);
         expect(change.c!.image).toEqual(match);
-        expect(change.e).not.toBeNull();
+        expect(change.e).not.toBeUndefined();
         triggered = true;
       });
       em.setComponent(existingId, new Renderable(match, 0));
@@ -362,8 +362,8 @@ describe('Entity Manager', () => {
     it('Receives notification from remove component', () => {
       em.monitorComponentType(Position, (change: ComponentChange<Position>) => {
         expect(change.id).toEqual(existingId);
-        expect(change.c).toBeNull();
-        expect(change.e).not.toBeNull();
+        expect(change.c).toBeUndefined();
+        expect(change.e).not.toBeUndefined();
         triggered = true;
       });
       em.removeComponent(existingId, Position);
@@ -382,7 +382,7 @@ describe('Entity Manager', () => {
 
     it('receives notifications on set component', () => {
       em.monitorEntity(monitorId, (e: Entity | null) => {
-        expect(e).not.toBeNull();
+        expect(e).not.toBeUndefined();
         expect(e!.component(Position).x()).toEqual(3);
         triggered = true;
       });
@@ -392,7 +392,7 @@ describe('Entity Manager', () => {
     
     it('receives notification on component removal', () => {
       em.monitorEntity(monitorId, (e: Entity | null) => {
-        expect(e).not.toBeNull();
+        expect(e).not.toBeUndefined();
         expect(e!.has(Position)).toBeFalsy();
       });
       em.removeComponent(monitorId, Position);
@@ -400,7 +400,7 @@ describe('Entity Manager', () => {
 
     it('receives notification on entity remove', () => {
       em.monitorEntity(monitorId, (e: Entity | null) => {
-        expect(e).toBeNull();
+        expect(e).toBeUndefined();
       });
       em.removeEntity(monitorId);
     });
