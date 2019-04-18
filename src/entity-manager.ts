@@ -173,11 +173,11 @@ export class EntityManager {
   monitorComponentType<T_Constructor extends ComponentConstructor>(
     type: T_Constructor, 
     callback: (change: ComponentChange<InstanceType<T_Constructor>>) => void
-  ) {
+  ): Subscription {
     if ( ! this.componentRegistrations.has(type) ) {
       this.componentRegistrations.set(type, new Subject<ComponentChange<InstanceType<ComponentConstructor>>>());
     }
-    this.componentRegistrations.get(type)!.subscribe(callback);
+    return this.componentRegistrations.get(type)!.subscribe(callback);
   }
 
   clear(): void {
