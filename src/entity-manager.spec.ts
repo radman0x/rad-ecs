@@ -105,7 +105,7 @@ describe('Entity Manager', () => {
       let emptyId: number;
       beforeEach( () => { 
         em = new EntityManager();
-        emptyId = em.createEntity().id(); 
+        emptyId = em.createEntity().id; 
       });
       it('Creates an empty entity', () => {
         
@@ -131,7 +131,7 @@ describe('Entity Manager', () => {
         initialisedId = em.createEntity(
           new Position(7,7), 
           new Physical(Size.FILL)
-        ).id();
+        ).id;
       });
 
       it('Creates entity with component list', () => {
@@ -154,7 +154,7 @@ describe('Entity Manager', () => {
       let manualId: number;
       beforeEach( () => {
         em = new EntityManager();
-        manualId = em.createEntity().id();
+        manualId = em.createEntity().id;
         em.setComponent(manualId, new Position(1,1));
       });
 
@@ -204,7 +204,7 @@ describe('Entity Manager', () => {
     });
 
     it('Replaces a component on an entity', () => {
-      const id = em.createEntity(new Position(5,5)).id();
+      const id = em.createEntity(new Position(5,5)).id;
       em.setComponent(id, new Position(2,2));
       expect(em.get(id).component(Position).equals(new Position(2,2))).toBeTruthy();
     });
@@ -217,11 +217,11 @@ describe('Entity Manager', () => {
     beforeEach( () => {
       em = new EntityManager();
       em.indexBy(Position);
-      id1 = em.createEntity(new Position(0, 0)).id();
+      id1 = em.createEntity(new Position(0, 0)).id;
       em.setComponent(id1, new Position(1, 1));
-      id2 = em.createEntity(new Position(2, 2)).id();
-      id3 = em.createEntity(new Position(3, 3)).id();
-      id4 = em.createEntity(new Position(1, 1)).id();
+      id2 = em.createEntity(new Position(2, 2)).id;
+      id3 = em.createEntity(new Position(3, 3)).id;
+      id4 = em.createEntity(new Position(1, 1)).id;
 
     });
 
@@ -234,10 +234,10 @@ describe('Entity Manager', () => {
 
     it('Retrieves entity by component value', () => {
       expect(em.matchingIndex(new Position(0, 0)).length).toEqual(0);
-      expect(em.matchingIndex(new Position(1, 1)).map( (e: Entity) => e.id())).toContain(id1);
-      expect(em.matchingIndex(new Position(1, 1)).map( (e: Entity) => e.id())).toContain(id4);
-      expect(em.matchingIndex(new Position(2, 2)).map( (e: Entity) => e.id())).toContain(id2);
-      expect(em.matchingIndex(new Position(3, 3)).map( (e: Entity) => e.id())).toContain(id3);
+      expect(em.matchingIndex(new Position(1, 1)).map( (e: Entity) => e.id)).toContain(id1);
+      expect(em.matchingIndex(new Position(1, 1)).map( (e: Entity) => e.id)).toContain(id4);
+      expect(em.matchingIndex(new Position(2, 2)).map( (e: Entity) => e.id)).toContain(id2);
+      expect(em.matchingIndex(new Position(3, 3)).map( (e: Entity) => e.id)).toContain(id3);
     });
 
     it('Verifies if that an entity has as index value', () => {
@@ -249,13 +249,13 @@ describe('Entity Manager', () => {
 
     it ('Retrieves by component value that was replaced', () => {
       let changed = em.createEntity(new Position(5, 5));
-      em.setComponent(changed.id(), new Position(6, 6));
+      em.setComponent(changed.id, new Position(6, 6));
       expect(em.matchingIndex(new Position(5, 5)).length).toEqual(0);
     });
 
     it ('Retrieves by component that replaces an old one', () => {
       let changed = em.createEntity(new Position(5, 5));
-      em.setComponent(changed.id(), new Position(6, 6));
+      em.setComponent(changed.id, new Position(6, 6));
       expect(em.matchingIndex(new Position(6, 6)).length).toEqual(1);
     })
   });
@@ -321,7 +321,7 @@ describe('Entity Manager', () => {
     let existingId: number;
     beforeEach(() => {
       em = new EntityManager();
-      existingId = em.createEntity( new Position(1,1) ).id();
+      existingId = em.createEntity( new Position(1,1) ).id;
       triggered = false;
     });
 
@@ -376,7 +376,7 @@ describe('Entity Manager', () => {
     let triggered: boolean;
     beforeEach(() => {
       em = new EntityManager();
-      monitorId = em.createEntity(new Position(1, 2)).id();
+      monitorId = em.createEntity(new Position(1, 2)).id;
       triggered = false;
     });
 

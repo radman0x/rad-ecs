@@ -52,7 +52,7 @@ export class Entity {
     }
   }
 
-  id(): number {
+  get id(): number {
     return this.id_;
   }
 }
