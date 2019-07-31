@@ -14,28 +14,35 @@ export * from './component';
 type Ctor<C> = new (...args: any[]) => C;
 type CtorsOf<T> = { [K in keyof T]: Ctor<T[K]> };
 
+type EntityId = number;
+
 export interface ComponentChange<T extends Component> {
-  id: number,
+  id: EntityId,
   e?: Entity,
   c?: T
 }
 
 export class EntityManager {
-  private currId = 0;
-  private entities: {[id: number]: Entity} = {};
-  private componentEntities = new Map<ComponentConstructor, Set<number>>();
-  private componentValueEntities = new Map<ComponentConstructor, HashTable<Hashable>>();
-  private entityRegistrations = new Map<number, Subject<Entity | null>>();
-  private componentRegistrations = new Map<ComponentConstructor, Subject<any>>();
+  private currId!                : EntityId;
+  private entities!              : {[id: number]: Entity};
+  private entityNameMapping!     : {[name: string]: EntityId};
+  private componentEntities!     : Map<ComponentConstructor, Set<EntityId>>;
+  private componentValueEntities!: Map<ComponentConstructor, HashTable<Hashable>>;
+  private entityRegistrations!   : Map<number, Subject<Entity | null>>;
+  private componentRegistrations!: Map<ComponentConstructor, Subject<any>>;
 
   constructor() {
+    this.init();
   }
 
   init(): void {
-    this.currId = 0;
-    this.entities = {};
-    this.componentEntities = new Map<ComponentConstructor, Set<number>>();
+    this.currId                 = 0;
+    this.entities               = {};
+    this.entityNameMapping      = {}
+    this.componentEntities      = new Map<ComponentConstructor, Set<EntityId>>();
     this.componentValueEntities = new Map<ComponentConstructor, HashTable<Hashable>>();
+    this.entityRegistrations    = new Map<number, Subject<Entity | null>>();
+    this.componentRegistrations = new Map<ComponentConstructor, Subject<any>>();
   }
 
   createEntity(...components: Component[]): Entity {
@@ -49,11 +56,59 @@ export class EntityManager {
     return entity;
   }
 
-  get(id: number): Entity | never {
+  createNamedEntity(name: string, ...components: Component[]): Entity {
+    if ( name in this.entityNameMapping) {
+      throw new Error(`Entity with name: ${name} already exists!`);
+    }
+    const newEntity = this.createEntity(...components);
+    this.entityNameMapping[name] = newEntity.id;
+    return newEntity;
+  }
+
+  get(id: EntityId): Entity | never {
     if (!this.exists(id)) {
       throw Error(`Entity with id: ${id} doesn't exist`);
     } else {
       return this.entities[id];
+    }
+  }
+
+  getNamed(name: string): Entity | never {
+    const id = this.entityNameMapping[name];
+    if ( id === undefined ) {
+      throw new Error(`Entity with name: ${name} doesn't exist`);
+    }
+    try {
+      return this.get(id);
+    } catch {
+      throw new Error(`Named entity points at entity with id: ${id}, which doesn't exist!`);
+    }
+  }
+
+  remove(id: EntityId): boolean {
+    if ( ! this.exists(id) ) {
+      return false;
+    }
+    let components = this.entities[id].allComponents();
+
+    delete this.entities[id];
+    for (const idIndex of this.componentEntities.values()) {
+      idIndex.delete(id);
+    }
+
+    for (const component of components) {
+      this.housekeepRemoveComponent(id, component, true);
+    }
+
+    return true;
+  }
+
+  removeNamed(name: string): boolean {
+    const id = this.entityNameMapping[name];
+    if ( id === undefined ) {
+      return false;
+    } else {
+      return this.remove(id);
     }
   }
 
@@ -73,10 +128,11 @@ export class EntityManager {
     return [valueIndex.countKeys(), count];
   }
 
-  hasIndex<T extends Component>(entityId: number, component: T): boolean {
+  hasIndex<T extends Component>(entityId: EntityId, component: T): boolean {
     const type = Object.getPrototypeOf(component).constructor;
     return this.componentValueEntities.has(type) && this.componentValueEntities.get(type)!.hasValue(component, entityId);
   }
+
   countIndex<T extends Component>(component: T): number {
     return this.matchingIndex(component).length;
   }
@@ -88,7 +144,7 @@ export class EntityManager {
       throw Error(`Attempt to retrieve by component ??? not set up for indexing`);
     }
 
-    return typeEntities.get(component).map( (id: number) => this.entities[id] );
+    return typeEntities.get(component).map( (id: EntityId) => this.entities[id] );
   }
 
   exists(id: number): boolean {
@@ -96,16 +152,14 @@ export class EntityManager {
   }
 
   matching(...types: ComponentConstructor[]): Entity[] {
-    return this.matchingIds(...types).map( (id: number) => this.entities[id] );
+    return this.matchingIds(...types).map( (id: EntityId) => this.entities[id] );
   }
   
-
-
   each<T extends Component[]>(
     callback: (e: Entity, ...component: T) => void,
     ...types: CtorsOf<T>): void {
 
-    this.matchingIds(...types).forEach( (id: number) => {
+    this.matchingIds(...types).forEach( (id: EntityId) => {
       let entity = this.entities[id];
       let instances = types.map( (t => entity.component(t) )) as T;
       callback(entity, ...instances);
@@ -123,51 +177,42 @@ export class EntityManager {
     }
   }
 
-  removeEntity(id: number): boolean {
-    if ( ! this.exists(id) ) {
-      return false;
-    }
-
-
-    let components = this.entities[id].allComponents();
-
-    delete this.entities[id];
-    for (const idIndex of this.componentEntities.values()) {
-      idIndex.delete(id);
-    }
-
-    for (const component of components) {
-      this.housekeepRemoveComponent(id, component, true);
-    }
-
-    return true;
-  }
-
-  setComponent<T extends Component>(id: number, component: T): void | never {
-    this.checkEntity(id);
+  setComponent<T extends Component>(id: EntityId | string, component: T): void | never {
+    const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
+    this.checkEntity(entityId);
     let componentType = Object.getPrototypeOf(component).constructor;
-    if ( this.entities[id].has(componentType) ) {
-      this.removeComponent(id, componentType, false);
+    if ( this.entities[entityId].has(componentType) ) {
+      this.removeComponent(entityId, componentType, false);
     }
-    const otherComponents = this.excludeComponents(id, [componentType]);
-    this.entities[id] = new Entity(id, [...otherComponents, component]);
-    this.housekeepAddComponent(id, component);
+    const otherComponents = this.excludeComponents(entityId, [componentType]);
+    this.entities[entityId] = new Entity(entityId, [...otherComponents, component]);
+    this.housekeepAddComponent(entityId, component);
   }
 
-  removeComponent(id: number, type: ComponentConstructor, notify: boolean = true): void | never {
-    this.checkEntity(id);
-    const toRemove = this.entities[id].component(type);
-    this.entities[id] = new Entity(id, this.excludeComponents(id, [type]));
-    this.housekeepRemoveComponent(id, toRemove, notify);
+  removeComponent(id: EntityId | string, type: ComponentConstructor, notify: boolean = true): void | never {
+    const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
+    this.checkEntity(entityId);
+    const toRemove = this.entities[entityId].component(type);
+    this.entities[entityId] = new Entity(entityId, this.excludeComponents(entityId, [type]));
+    this.housekeepRemoveComponent(entityId, toRemove, notify);
   }
 
-  monitorEntity(id: number, callback: (e: Entity | null) => void): Subscription {
+  monitor(id: EntityId, callback: (e: Entity | null) => void): Subscription {
     if ( ! this.entityRegistrations.has(id) ) {
       console.log(`setting registration on: ${id}`);
       this.entityRegistrations.set(id, new Subject<Entity | null>());
     }
     console.log(`subscribing`);
     return this.entityRegistrations.get(id)!.subscribe(callback);
+  }
+
+  monitorNamed(name: string, callback: (e: Entity | null) => void): Subscription {
+    const id = this.entityNameMapping[name];
+    if ( id === undefined ) {
+      throw new Error(`Attempt monitor entity with name: ${name}, which doesn't exist!`);
+    } else {
+      return this.monitor(id, callback);
+    }
   }
 
   monitorComponentType<T_Constructor extends ComponentConstructor>(
@@ -188,11 +233,11 @@ export class EntityManager {
     return Object.keys(this.entities).length;
   }
 
-  private housekeepAddComponent(id: number, component: Component): void | never {
+  private housekeepAddComponent(id: EntityId, component: Component): void | never {
     const type = Object.getPrototypeOf(component).constructor;
 
     if ( this.componentEntities.get(type) === undefined ) {
-      this.componentEntities.set(type, new Set<number>());
+      this.componentEntities.set(type, new Set<EntityId>());
     }
 
     this.componentEntities.get(type)!.add(id);
@@ -215,7 +260,7 @@ export class EntityManager {
     }
   }
 
-  private housekeepRemoveComponent(id: number, component: Component, notify: boolean): void {
+  private housekeepRemoveComponent(id: EntityId, component: Component, notify: boolean): void {
     const type = Object.getPrototypeOf(component).constructor;
     if ( this.componentEntities.has(type) ) {
       this.componentEntities.get(type)!.delete(id);
@@ -239,11 +284,11 @@ export class EntityManager {
     }
   }
 
-  private excludeComponents(id: number, types: ComponentConstructor[]): Component[] {
+  private excludeComponents(id: EntityId, types: ComponentConstructor[]): Component[] {
     return this.entities[id].allComponents().filter( (component: Component) => types.indexOf(Object.getPrototypeOf(component).constructor) === -1 );
   }
 
-  private checkEntity(id: number): void | never {
+  private checkEntity(id: EntityId): void | never {
     if ( ! this.exists(id) ) {
       throw Error(`Attempt to replace component on entity ${id} that doesn't exist!`);
     }

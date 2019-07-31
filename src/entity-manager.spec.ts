@@ -98,7 +98,6 @@ class MoveTo extends Component {
 
 describe('Entity Manager', () => {
   let em: EntityManager;
-  beforeAll( () => { em = new EntityManager() } );
   
   describe('Basic Testing', () => {
     describe('Empty entities', () => {
@@ -119,7 +118,7 @@ describe('Entity Manager', () => {
       });
     
       it('Removes empty entity', () => {
-        expect(em.removeEntity(emptyId)).toBeTruthy();
+        expect(em.remove(emptyId)).toBeTruthy();
         expect(() => em.get(emptyId)).toThrow();
       });
     });
@@ -142,7 +141,7 @@ describe('Entity Manager', () => {
       });
     
       it('Removes component list entity', () => {
-        expect(em.removeEntity(initialisedId)).toBeTruthy();
+        expect(em.remove(initialisedId)).toBeTruthy();
         expect(() => em.get(initialisedId)).toThrow();
         expect(em.matchingIds(Position)).not.toContain(initialisedId);
         expect(em.matchingIds(Physical)).not.toContain(initialisedId);
@@ -165,7 +164,7 @@ describe('Entity Manager', () => {
       });
     
       it('Removes manual entity', () => {
-        expect(em.removeEntity(manualId)).toBeTruthy();
+        expect(em.remove(manualId)).toBeTruthy();
         expect(() => em.get(manualId)).toThrow();
         expect(em.count()).toEqual(0);
       });
@@ -302,9 +301,6 @@ describe('Entity Manager', () => {
       let count = 0;
       em.each((e: Entity, p: Position, r: Renderable) => {
         ++count;
-        // console.log(e);
-        console.log(p);
-        console.log(r);
       }, Position, Renderable);
       expect(count).toEqual(2);
     });
@@ -343,7 +339,7 @@ describe('Entity Manager', () => {
         expect(change.e).toBeUndefined();
         triggered = true;
       });
-      em.removeEntity(existingId);
+      em.remove(existingId);
       expect(triggered).toBeTruthy();
     });
 
@@ -381,7 +377,7 @@ describe('Entity Manager', () => {
     });
 
     it('receives notifications on set component', () => {
-      em.monitorEntity(monitorId, (e: Entity | null) => {
+      em.monitor(monitorId, (e: Entity | null) => {
         expect(e).not.toBeUndefined();
         expect(e!.component(Position).x()).toEqual(3);
         triggered = true;
@@ -391,7 +387,7 @@ describe('Entity Manager', () => {
     });
     
     it('receives notification on component removal', () => {
-      em.monitorEntity(monitorId, (e: Entity | null) => {
+      em.monitor(monitorId, (e: Entity | null) => {
         expect(e).not.toBeUndefined();
         expect(e!.has(Position)).toBeFalsy();
       });
@@ -399,14 +395,83 @@ describe('Entity Manager', () => {
     });
 
     it('receives notification on entity remove', () => {
-      em.monitorEntity(monitorId, (e: Entity | null) => {
+      em.monitor(monitorId, (e: Entity | null) => {
         expect(e).toBeUndefined();
       });
-      em.removeEntity(monitorId);
+      em.remove(monitorId);
     });
 
   });
 
+  describe('Handling for named entities', () => {
+    beforeEach(() => {
+      em = new EntityManager();
+    });
+    it('should create and retrieve an entity by name', () => {
+      const namedEnt = em.createNamedEntity('entityName', 
+        new Position(1, 1)
+      );
+      expect(em.getNamed('entityName')).toEqual(namedEnt);
+    });
+    it('should create by name and retrieve with id', () => {
+      const namedEnt = em.createNamedEntity('entityName',
+        new Position(1, 1)
+      );
+      expect(em.get(namedEnt.id)).toEqual(namedEnt);
+    });
+    it('should throw if there is an attempt to create an entity with a name that already exists', () => {
+      em.createNamedEntity('entityName',
+        new Position(1, 1)
+      );
+      expect(() => em.createNamedEntity('entityName', new Position(2, 2))).toThrow();
+    });
+    it('should include named entity components in normal iterations', () => {
+      em.createNamedEntity('entityName',
+        new Position(1, 1)
+      );
+      let count = 0;
+      em.each((e , p) => {
+        ++count;
+      }, Position);
+      expect(count).toEqual(1);
+    });
+    it('should remove a named entity by id', () => {
+      const id = em.createNamedEntity('entityName',
+        new Position(1, 1)
+      ).id;
+      em.remove(id);
+      expect(() => em.getNamed('entityName')).toThrow();
+    });
+    it('should remove a named entity by name', () => {
+      em.createNamedEntity('entityName',
+        new Position(1, 1)
+      ).id;
+      em.removeNamed('entityName');
+      expect(() => em.getNamed('entityName')).toThrow();
+    });
+    it('should set a component on a named entity', () => {
+      em.createNamedEntity('entityName');
+      em.setComponent('entityName', new Position(7, 7));
+      expect(em.getNamed('entityName').component(Position)).toEqual(new Position(7, 7));
+    });
+    it('should remove a component from a named entity', () => {
+      em.createNamedEntity('entityName', new Position(7, 7));
+      em.removeComponent('entityName', Position);
+      expect(() => em.getNamed('entityName').component(Position)).toThrow();
+    });
+
+    it('should monitor a named entity', () => {
+      let triggered = false;
+      em.createNamedEntity('entityName');
+      em.monitorNamed('entityName', (e: Entity | null) => {
+        expect(e).not.toBeUndefined();
+        expect(e!.component(Position).x()).toEqual(1);
+        triggered = true;
+      });
+      em.setComponent('entityName', new Position(1, 1));
+      expect(triggered).toBeTruthy();
+    });
+  });
 });
 
 describe('Entity', () => {
