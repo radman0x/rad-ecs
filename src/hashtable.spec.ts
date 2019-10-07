@@ -1,4 +1,3 @@
-import {} from 'jasmine';
 
 import {HashTable, Hashable} from './hashtable'
 
@@ -54,6 +53,14 @@ describe('HashTable', () => {
         }
       }
     }
+  });
+
+  it('should be iterable', () => {
+    hashTable.add(new Example(1, 1), 7);
+    for (const [, value] of hashTable) {
+      expect(value.has(7)).toBe(true);
+    }
+    
   });
 });
 

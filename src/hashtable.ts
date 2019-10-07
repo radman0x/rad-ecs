@@ -12,6 +12,12 @@ export class HashTable<T_Key extends Hashable> {
 
   constructor() {}
 
+  *[Symbol.iterator](): IterableIterator<[string, Set<number>]> {
+    for (const e of Object.entries(this.values)) {
+      yield e;
+    }
+  }
+
   add(key: T_Key, value: number): void {
     this.values[key.hash()] = this.values[key.hash()] || new Set<number>()
     this.values[key.hash()].add(value);

@@ -1,4 +1,4 @@
-import { Entity } from './entity';
+import { Entity, ComponentEntry } from './entity';
 
 import { HashTable, Hashable } from './hashtable';
 
@@ -16,11 +16,23 @@ type CtorsOf<T> = { [K in keyof T]: Ctor<T[K]> };
 
 type EntityId = number;
 
-export interface ComponentChange<T extends Component> {
+export interface ComponentChange<T_Component extends Component> {
   id: EntityId,
   e?: Entity,
-  c?: T
+  c?: T_Component
 }
+
+export interface ComponentIndexingInfo {
+  uniqueComponentValues: number, 
+  totalComponents: number
+}
+
+export interface ECSData {
+  indexed: string[],
+  entities: {
+    [entityId: string]: JsonObject;
+  }
+};
 
 export class EntityManager {
   private currId!                : EntityId;
@@ -47,13 +59,7 @@ export class EntityManager {
 
   createEntity(...components: Component[]): Entity {
     const id = this.currId++;
-    const entity = new Entity(id, components);
-    this.entities[id] = entity;
-    for (const component of components) {
-      this.housekeepAddComponent(id, component);
-    }
-
-    return entity;
+    return this._createEntity(id, ...components);
   }
 
   createNamedEntity(name: string, ...components: Component[]): Entity {
@@ -96,8 +102,8 @@ export class EntityManager {
       idIndex.delete(id);
     }
 
-    for (const component of components) {
-      this.housekeepRemoveComponent(id, component, true);
+    for (const componentEntry of components) {
+      this.housekeepRemoveComponent(id, componentEntry.component, true);
     }
 
     return true;
@@ -112,20 +118,20 @@ export class EntityManager {
     }
   }
 
-  indexBy(type: ComponentConstructor): [number, number] {
+  indexBy(componentType: ComponentConstructor): ComponentIndexingInfo  {
     const valueIndex = new HashTable<Hashable>();
 
     let count = 0;
-    let typeEntities = this.componentEntities.get(type);
+    let typeEntities = this.componentEntities.get(componentType);
     if ( typeEntities ) {
       for (const id of typeEntities) {
-        const component = this.entities[id].component(type);
+        const component = this.entities[id].component(componentType);
         valueIndex.add(component, id);
         ++count;
       }
     }
-    this.componentValueEntities.set(type, valueIndex);
-    return [valueIndex.countKeys(), count];
+    this.componentValueEntities.set(componentType, valueIndex);
+    return {uniqueComponentValues: valueIndex.countKeys(), totalComponents: count};
   }
 
   hasIndex<T extends Component>(entityId: EntityId, component: T): boolean {
@@ -139,7 +145,7 @@ export class EntityManager {
 
   matchingIndex<T extends Component>(component: T): Entity[] {
     const type = Object.getPrototypeOf(component).constructor;
-    const typeEntities = this.componentValueEntities.get(type); 
+    const typeEntities = this.componentValueEntities.get(type);
     if ( ! typeEntities ) {
       throw Error(`Attempt to retrieve by component ??? not set up for indexing`);
     }
@@ -154,7 +160,7 @@ export class EntityManager {
   matching(...types: ComponentConstructor[]): Entity[] {
     return this.matchingIds(...types).map( (id: EntityId) => this.entities[id] );
   }
-  
+
   each<T extends Component[]>(
     callback: (e: Entity, ...component: T) => void,
     ...types: CtorsOf<T>): void {
@@ -197,26 +203,39 @@ export class EntityManager {
     this.housekeepRemoveComponent(entityId, toRemove, notify);
   }
 
+  /** Subscribe to be notified when an Entity is modified
+   *
+   * @param id: Id of the entity to monitor.
+   * @param callback: Receives the new version of the entity or null if the entity was deleted.
+   */
   monitor(id: EntityId, callback: (e: Entity | null) => void): Subscription {
     if ( ! this.entityRegistrations.has(id) ) {
-      console.log(`setting registration on: ${id}`);
       this.entityRegistrations.set(id, new Subject<Entity | null>());
     }
-    console.log(`subscribing`);
     return this.entityRegistrations.get(id)!.subscribe(callback);
   }
 
+  /** Subscribe by name to be notified when an Entity is modified
+   *
+   * @param name: Name of the entity to monitor.
+   * @param callback: Receives the new version of the entity or null if the entity was deleted.
+   */
   monitorNamed(name: string, callback: (e: Entity | null) => void): Subscription {
     const id = this.entityNameMapping[name];
     if ( id === undefined ) {
-      throw new Error(`Attempt monitor entity with name: ${name}, which doesn't exist!`);
+      throw new Error(`Attempt to monitor entity with name: ${name}, which doesn't exist!`);
     } else {
       return this.monitor(id, callback);
     }
   }
 
+  /** Subscribe to be notified when a type of component is modified
+   *
+   * @param type: Constructor function of the Component type that events are to be sent for.
+   * @param callback: receives Entity, EntityId and component on change, null values for entity component indicate deletion.
+   */
   monitorComponentType<T_Constructor extends ComponentConstructor>(
-    type: T_Constructor, 
+    type: T_Constructor,
     callback: (change: ComponentChange<InstanceType<T_Constructor>>) => void
   ): Subscription {
     if ( ! this.componentRegistrations.has(type) ) {
@@ -231,6 +250,64 @@ export class EntityManager {
 
   count(): number {
     return Object.keys(this.entities).length;
+  }
+
+  /** Get the state of the ECS as data
+   */
+  toData() {
+    const data: ECSData = {
+      indexed: [],
+      entities: {}
+    };
+
+    for ( const [id, entity] of Object.entries(this.entities) ) {
+      data.entities[id] = data.entities[id] || {};
+      for ( const {name, component} of entity.allComponents() ) {
+        data.entities[id][name] = JSON.parse(JSON.stringify(component));
+      }
+    }
+
+    data.indexed = Array.from( this.componentValueEntities.keys() ).map( componentConstructor => componentConstructor.name );
+
+    return data;
+  }
+
+  /** Set the state of the ECS from the data provided
+   * 
+   * @param data JSON representation of the ECS state, usually obtained by the toData() method on an existing instance
+   * @param componentTypes A dictionary of Constructor functions used to instantiate components by name
+   * 
+   * @note Doesn't retain any of the event registrations, these have to be set up manually.
+   */
+  fromData(
+    data: ECSData, 
+    componentTypes: { [name: string]: new (...args: any[]) => any }
+  ): EntityId {
+    let highestId: EntityId = 0;
+    this.clear();
+    for (const [entityId, components] of Object.entries(data.entities)) {
+      const idAsNumber = Number(entityId);
+      const entityComponents: Component[] = [];
+      highestId = Math.max(highestId, idAsNumber);
+      for (const [componentName, componentData] of Object.entries(components)) {
+        if ( componentName in componentTypes ) {
+          const component = new componentTypes[componentName](componentData);
+          entityComponents.push(component);
+        } else {
+          throw Error(`Component in input data: ${componentName} is not in type index!`);
+        }
+      }
+      this._createEntity(Number(entityId), ...entityComponents);
+    }
+    for (const componentName of data.indexed) {
+      if ( componentName in componentTypes ) {
+        this.indexBy(componentTypes[componentName]);
+      } else {
+        throw Error(`Component to index by: ${componentName} is not in type index!`);
+      }
+    }
+    this.currId = highestId + 1;
+    return highestId;
   }
 
   private housekeepAddComponent(id: EntityId, component: Component): void | never {
@@ -273,25 +350,39 @@ export class EntityManager {
       if ( this.entityRegistrations.has(id) ) {
         this.entityRegistrations.get(id)!.next(entityValue);
       }
-  
+
       const constructor = component.constructor as ComponentConstructor;
       if ( this.componentRegistrations.has(constructor) ) {
         (this.componentRegistrations.get(constructor) as Subject<ComponentChange<Component>>).next({
           id: id,
-          e: entityValue 
+          e: entityValue
         });
       }
     }
   }
 
   private excludeComponents(id: EntityId, types: ComponentConstructor[]): Component[] {
-    return this.entities[id].allComponents().filter( (component: Component) => types.indexOf(Object.getPrototypeOf(component).constructor) === -1 );
+    return this.entities[id].allComponents()
+      .filter( (ce: ComponentEntry) => { 
+        return types.indexOf(Object.getPrototypeOf(ce.component).constructor) === -1;
+      })
+      .map( (ce: ComponentEntry) => ce.component);
   }
 
   private checkEntity(id: EntityId): void | never {
     if ( ! this.exists(id) ) {
       throw Error(`Attempt to replace component on entity ${id} that doesn't exist!`);
     }
+  }
+
+  private _createEntity(id: EntityId, ...components: Component[]): Entity {
+    const entity = new Entity(id, components);
+    this.entities[id] = entity;
+    for (const component of components) {
+      this.housekeepAddComponent(id, component);
+    }
+
+    return entity;
   }
 
 }

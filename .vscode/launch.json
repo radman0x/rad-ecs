@@ -1,0 +1,33 @@
+
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Jest test with pattern",
+      "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
+      "args": [
+        "${input:testPattern}"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Jest all tests",
+      "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
+      "console": "integratedTerminal"
+    },
+  ],
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "testPattern",
+      "description": "Pattern passed to jest to match tests",
+      "default": "entity-manager"
+    }
+
+  ]
+
+}

@@ -1,8 +1,15 @@
 
 import {Component, ComponentConstructor} from './component';
 
+export interface ComponentEntry {
+  name: string;
+  component: Component;
+}
+
 export class Entity {
+
   private components_ = new Map<ComponentConstructor, Component>();
+
   constructor(
     private id_: number,
     components: Component[]
@@ -35,8 +42,13 @@ export class Entity {
      });
   }
 
-  allComponents(): Component[] {
-    return Array.from(this.components_.values());
+  allComponents(): ComponentEntry[] {
+    const components: ComponentEntry[] = [];
+    for ( const [componentConstructor, component] of this.components_) {
+      components.push({name: componentConstructor.name, component: component});
+    }
+    return components;
+    
   }
 
   has(types: ComponentConstructor | ComponentConstructor[]): boolean {
