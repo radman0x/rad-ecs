@@ -12,6 +12,7 @@ This library is heavy on entity creation and management, while being very light 
   * Rxjs based event signalling to monitor entity and component changes
   * Indexing by component type to allow quick lookup of all components with a given value e.g get all entities with a position
   * Immutable pattern for updating entities
+  * Serialisation of entity data for saving state
 
 ## Hello world
 

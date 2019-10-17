@@ -244,11 +244,14 @@ describe('Entity Manager', () => {
       expect(indexEm.indexBy(Position)).toEqual({uniqueComponentValues: 3, totalComponents: 4});
     });
 
-    it('Gets the number of entities with a component value', () => {
+    it('should get the number of entities with a component value', () => {
       expect(em.countIndex(new Position({x: 0, y: 0}))).toEqual(0);
       expect(em.countIndex(new Position({x: 1, y: 1}))).toEqual(2);
       expect(em.countIndex(new Position({x: 2, y: 2}))).toEqual(1);
       expect(em.countIndex(new Position({x: 3, y: 3}))).toEqual(1);
+
+      expect(() => em.countIndex(new Renderable('aoeu', 1))).toThrow();
+
     });
 
     it('Retrieves entity by component value', () => {
@@ -257,13 +260,18 @@ describe('Entity Manager', () => {
       expect(em.matchingIndex(new Position({x: 1, y: 1})).map( (e: Entity) => e.id)).toContain(id4);
       expect(em.matchingIndex(new Position({x: 2, y: 2})).map( (e: Entity) => e.id)).toContain(id2);
       expect(em.matchingIndex(new Position({x: 3, y: 3})).map( (e: Entity) => e.id)).toContain(id3);
+
+      expect(() => em.matchingIndex(new Renderable('aoeu', 1))).toThrow();
     });
 
     it('Verifies if that an entity has as index value', () => {
-      expect(em.hasIndex(id1, new Position({x: 1, y: 1}))).toBeTruthy();
-      expect(em.hasIndex(id2, new Position({x: 2, y: 2}))).toBeTruthy();
-      expect(em.hasIndex(id3, new Position({x: 3, y: 3}))).toBeTruthy();
-      expect(em.hasIndex(id4, new Position({x: 1, y: 1}))).toBeTruthy();
+      expect(em.hasIndex(id1, new Position({x: 1, y: 1}))).toEqual(true);
+      expect(em.hasIndex(id2, new Position({x: 2, y: 2}))).toEqual(true);
+      expect(em.hasIndex(id3, new Position({x: 3, y: 3}))).toEqual(true);
+      expect(em.hasIndex(id4, new Position({x: 1, y: 1}))).toEqual(true);
+      expect(em.hasIndex(id4, new Position({x: 21, y: 99}))).toEqual(false);
+
+      expect(() => em.hasIndex(id4, new Renderable('aoeu', 1))).toThrow();
     });
 
     it ('Retrieves by component value that was replaced', () => {
@@ -495,6 +503,11 @@ describe('Entity Manager', () => {
       em.createNamedEntity('entityName');
       em.setComponent('entityName', new Position({x: 7, y: 7}));
       expect(em.getNamed('entityName').component(Position)).toEqual(new Position({x: 7, y: 7}));
+    });
+
+    it('should fail to set a component on entities that do not exist', () => {
+      expect( () => em.setComponent('does-not-exist', new Position({x: 7, y: 7})) ).toThrow();
+      expect( () => em.setComponent(999999, new Position({x: 7, y: 7})) ).toThrow();
     });
 
     it('should remove a component from a named entity', () => {

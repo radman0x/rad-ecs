@@ -6,7 +6,9 @@ import { Component, ComponentConstructor } from './component';
 
 import { setIntersect } from './utils'
 
-import { Subscription, Observable, Subject } from 'rxjs';
+import { Subscription, Subject } from 'rxjs';
+
+import { JsonObject } from './types';
 
 export * from './component';
 
@@ -34,6 +36,8 @@ export interface ECSData {
   }
 };
 
+/** Create, monitor, iterate and manage entities comprised of components
+ */
 export class EntityManager {
   private currId!                : EntityId;
   private entities!              : {[id: number]: Entity};
@@ -47,7 +51,7 @@ export class EntityManager {
     this.init();
   }
 
-  init(): void {
+  private init(): void {
     this.currId                 = 0;
     this.entities               = {};
     this.entityNameMapping      = {}
@@ -57,11 +61,24 @@ export class EntityManager {
     this.componentRegistrations = new Map<ComponentConstructor, Subject<any>>();
   }
 
+  /** Create a new entity
+   *
+   * @param components - Components to add to the new entity
+   * @return the new entity
+   *
+   */
   createEntity(...components: Component[]): Entity {
     const id = this.currId++;
     return this._createEntity(id, ...components);
   }
 
+  /** Create a new named entity
+   *
+   * @param name - Name for the entity (used for later retrieval)
+   * @param components - Components to add to the new entity
+   * 
+   * @return the new entity
+   */
   createNamedEntity(name: string, ...components: Component[]): Entity {
     if ( name in this.entityNameMapping) {
       throw new Error(`Entity with name: ${name} already exists!`);
@@ -71,6 +88,12 @@ export class EntityManager {
     return newEntity;
   }
 
+  /** Get an existing entity by its id
+   * 
+   * @param id - ID of the entity to retrieve
+   * 
+   * @throws {Error} If entity with id doesn't exist
+   */
   get(id: EntityId): Entity | never {
     if (!this.exists(id)) {
       throw Error(`Entity with id: ${id} doesn't exist`);
@@ -79,6 +102,14 @@ export class EntityManager {
     }
   }
 
+  /** Get an existing entity by its name
+   * 
+   * @param name - Name of the entity to retrieve
+   * 
+   * @throws {Error} If entity with specified name doesn't exist
+   * 
+   * @see createNamedEntity - Not all entities have a name, they must have one specified by 
+   */
   getNamed(name: string): Entity | never {
     const id = this.entityNameMapping[name];
     if ( id === undefined ) {
@@ -91,6 +122,10 @@ export class EntityManager {
     }
   }
 
+  /** Remove an existing entity by ID
+   * 
+   * @param id - Id of the entity to remove
+   */
   remove(id: EntityId): boolean {
     if ( ! this.exists(id) ) {
       return false;
@@ -109,6 +144,12 @@ export class EntityManager {
     return true;
   }
 
+  /** Remove an existing entity by its name
+   * 
+   * @param name - Name of the entity to remove
+   * 
+   * @see createNamedEntity - Not all entities have a name, they must have one specified by 
+   */
   removeNamed(name: string): boolean {
     const id = this.entityNameMapping[name];
     if ( id === undefined ) {
@@ -118,6 +159,19 @@ export class EntityManager {
     }
   }
 
+  /** Set up the given Component type to be indexed for retrieval by component value
+   * 
+   * The component type specified must have its hash() function implemented to return a unique value for each possible
+   * component value e.g. if your type is a 2D coord then the hash function could return '{x, y}' and satisfy this
+   * requirement.
+   * 
+   * The utility of this is that once a component is set up for indexing you can use the supporting methods in this 
+   * class to retrieve all entities that have a specific component value amongst other things.
+   * 
+   * @param componentType - Component type to set up for indexing
+   * 
+   * @returns - The Total number of components indexed and the total number of unique components
+   */
   indexBy(componentType: ComponentConstructor): ComponentIndexingInfo  {
     const valueIndex = new HashTable<Hashable>();
 
@@ -134,33 +188,62 @@ export class EntityManager {
     return {uniqueComponentValues: valueIndex.countKeys(), totalComponents: count};
   }
 
+  /** Checks whether an entity has a given component value
+   * 
+   * @throws {Error} - If the type of the component provided hasn't been set up for indexing
+   * @returns {boolean} - True if the entity has a component with the provided value, false otherwise
+   */
   hasIndex<T extends Component>(entityId: EntityId, component: T): boolean {
-    const type = Object.getPrototypeOf(component).constructor;
-    return this.componentValueEntities.has(type) && this.componentValueEntities.get(type)!.hasValue(component, entityId);
+    const typeEntities = this.indexedEntitiesForType(component);
+    return typeEntities.hasValue(component, entityId);
   }
 
+  /** Gives the number of entities that have a component that matches the provided component value
+   * 
+   * @param component - The component value to look for
+   * 
+   * @return - The number of entities that have a component matching the one specified
+   */
   countIndex<T extends Component>(component: T): number {
     return this.matchingIndex(component).length;
   }
 
+  /** Gives all entities that have a component that matches the provided component value
+   * 
+   * @param component - The component value to look for
+   * 
+   * @return - An array of the entities that have the provided component value
+   */
   matchingIndex<T extends Component>(component: T): Entity[] {
-    const type = Object.getPrototypeOf(component).constructor;
-    const typeEntities = this.componentValueEntities.get(type);
-    if ( ! typeEntities ) {
-      throw Error(`Attempt to retrieve by component ??? not set up for indexing`);
-    }
-
+    const typeEntities = this.indexedEntitiesForType(component);
     return typeEntities.get(component).map( (id: EntityId) => this.entities[id] );
   }
 
+  /** Checks whether an entity with the provided ID exists
+   * 
+   * @returns - true if an entity with the ID exists, false otherwise
+   */
   exists(id: number): boolean {
     return (id in this.entities);
   }
 
+  /** Gets all entities that have a set of component types
+   * 
+   * @param types - Component types that must exist on returned entities
+   * 
+   * @returns - All entities that have instances of the component types passed in
+   */
   matching(...types: ComponentConstructor[]): Entity[] {
     return this.matchingIds(...types).map( (id: EntityId) => this.entities[id] );
   }
 
+  /** Iterate and execute the callback on all entities that have a specified set of components
+   * 
+   * @param callback - Callback executed for each matching entity, receives the entity and each matching component
+   * @param types - Component types that determine that the callback is executed if an entity has instances of them
+   * 
+   * @note - Order of component types in 'types' and 'callback' parameters must match. Type errors will guide correctness.
+   */
   each<T extends Component[]>(
     callback: (e: Entity, ...component: T) => void,
     ...types: CtorsOf<T>): void {
@@ -172,6 +255,12 @@ export class EntityManager {
      } );
   }
 
+  /** Gets the IDs of all entities that have a set of components
+   * 
+   * @param types - Component types that if an Entity has instances of will have its ID in the output.
+   * 
+   * @returns - IDs of all entities that have instances of the component types provided
+   */ 
   matchingIds(...types: ComponentConstructor[]): number[] {
 
     const working: Set<number>[] = types.filter( (type: ComponentConstructor) => this.componentEntities.has(type) )
@@ -183,6 +272,12 @@ export class EntityManager {
     }
   }
 
+  /** Add or replace a component on an entity by name or ID
+   * 
+   * @param id - Either an entityID or an entity name
+   * 
+   * @throws {Error} - If an entity with the provided name or ID doesn't exist
+   */
   setComponent<T extends Component>(id: EntityId | string, component: T): void | never {
     const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
     this.checkEntity(entityId);
@@ -195,6 +290,12 @@ export class EntityManager {
     this.housekeepAddComponent(entityId, component);
   }
 
+  /** Removes any component instance present on an entity based on the provided component type
+   * 
+   * @param id - Either an entityID or an entity name
+   * 
+   * @throws {Error} - If an entity with the provided name or ID doesn't exist
+   */
   removeComponent(id: EntityId | string, type: ComponentConstructor, notify: boolean = true): void | never {
     const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
     this.checkEntity(entityId);
@@ -244,15 +345,19 @@ export class EntityManager {
     return this.componentRegistrations.get(type)!.subscribe(callback);
   }
 
+  /** Completely reset the state of the entity manager to a clean state, clears everything
+   */
   clear(): void {
     this.init();
   }
 
+  /** Get the total number of entities currently being managed
+   */
   count(): number {
     return Object.keys(this.entities).length;
   }
 
-  /** Get the state of the ECS as data
+  /** Get the state of the ECS as a JSON data structure
    */
   toData() {
     const data: ECSData = {
@@ -277,7 +382,7 @@ export class EntityManager {
    * @param data JSON representation of the ECS state, usually obtained by the toData() method on an existing instance
    * @param componentTypes A dictionary of Constructor functions used to instantiate components by name
    * 
-   * @note Doesn't retain any of the event registrations, these have to be set up manually.
+   * @note Doesn't make any consideration for event registrations, these have to be set up manually.
    */
   fromData(
     data: ECSData, 
@@ -385,4 +490,12 @@ export class EntityManager {
     return entity;
   }
 
+  private indexedEntitiesForType<T extends Component>(component: T): HashTable<Hashable> {
+    const type = Object.getPrototypeOf(component).constructor;
+    const typeEntities = this.componentValueEntities.get(type);
+    if ( ! typeEntities ) {
+      throw Error(`Attempt to retrieve by component ??? not set up for indexing`);
+    }
+    return typeEntities;
+  }
 }
