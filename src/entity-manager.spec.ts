@@ -167,11 +167,23 @@ describe('Entity Manager', () => {
       });
 
       it('should throw when setting a component on an entity that does not exist', () => {
-        expect( () => em.setComponent(ID_NOT_EXIST, new Position({x: 0, y: 0})) ).toThrow()
+        expect( () => em.setComponent(ID_NOT_EXIST, new Position({x: 0, y: 0})) ).toThrow();
       });
 
       it('should throw when removing a component from an entity that does not exist', () => {
-        expect( () => em.removeComponent(ID_NOT_EXIST, Position) ).toThrow()
+        expect( () => em.removeComponent(ID_NOT_EXIST, Position) ).toThrow();
+      });
+
+      it('should remove a component from an entity', () => {
+        expect( em.removeComponent(manualId, Position) ).toBe(true);
+        expect( em.get(manualId).has(Position) ).toBe(false);
+        expect( em.removeComponent(manualId, Renderable) ).toBe(false);
+      });
+
+      it('should check whether a component exists on an entity', () => {
+        expect( em.hasComponent(manualId, Position) ).toBe(true);
+        expect( em.hasComponent(manualId, Renderable) ).toBe(false);
+        expect( () => em.hasComponent(ID_NOT_EXIST, Position) ).toThrow();
       });
     
       it('Removes manual entity', () => {

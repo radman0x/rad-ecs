@@ -290,18 +290,40 @@ export class EntityManager {
     this.housekeepAddComponent(entityId, component);
   }
 
+  /** Checks whether a component of the specified type exists on the specified entity
+   * 
+   * @returns - True if the entity has the component, false otherwise
+   * 
+   * @throws - If an entity with the ID doesn't exist
+   */
+  hasComponent(id: EntityId | string, type: ComponentConstructor): boolean | never {
+    const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
+    this.checkEntity(entityId);
+
+    return this.entities[entityId].has(type);
+  }
+
   /** Removes any component instance present on an entity based on the provided component type
+   * 
+   * @note doesn't send a notification if there was not component on the entity to remove
    * 
    * @param id - Either an entityID or an entity name
    * 
+   * @returns {boolean} - If a component existed on the entity and was removed, false otherwise.
+   * 
    * @throws {Error} - If an entity with the provided name or ID doesn't exist
    */
-  removeComponent(id: EntityId | string, type: ComponentConstructor, notify: boolean = true): void | never {
+  removeComponent(id: EntityId | string, type: ComponentConstructor, notify: boolean = true): boolean | never {
     const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
     this.checkEntity(entityId);
-    const toRemove = this.entities[entityId].component(type);
-    this.entities[entityId] = new Entity(entityId, this.excludeComponents(entityId, [type]));
-    this.housekeepRemoveComponent(entityId, toRemove, notify);
+    if ( this.entities[entityId].has(type) ) {
+      const toRemove = this.entities[entityId].component(type);
+      this.entities[entityId] = new Entity(entityId, this.excludeComponents(entityId, [type]));
+      this.housekeepRemoveComponent(entityId, toRemove, notify);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   /** Subscribe to be notified when an Entity is modified
