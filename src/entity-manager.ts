@@ -24,11 +24,12 @@ export interface ComponentIndexingInfo {
   totalComponents: number;
 }
 
+export interface EntityData {
+  [entityId: string]: JsonObject;
+}
 export interface ECSData {
   indexed: string[];
-  entities: {
-    [entityId: string]: JsonObject;
-  };
+  entities: EntityData;
 }
 
 /** Create, monitor, iterate and manage entities comprised of components
@@ -45,12 +46,19 @@ export class EntityManager {
   private entityRegistrations!: Map<number, Subject<Entity | null>>;
   private componentRegistrations!: Map<ComponentConstructor, Subject<any>>;
 
+  private componentConstructorNameRegistry = new Map<
+    string,
+    ComponentConstructor
+  >();
+
+  private initialised = new Subject();
+
   constructor() {
     this.init();
   }
 
-  private init(): void {
-    this.currId = 0;
+  private init(idStart = 0): void {
+    this.currId = idStart;
     this.entities = {};
     this.entityNameMapping = {};
     this.componentEntities = new Map<ComponentConstructor, Set<EntityId>>();
@@ -68,9 +76,20 @@ export class EntityManager {
    * @return the new entity
    *
    */
-  createEntity(...components: Component[]): Entity {
+  create(...components: Component[]): Entity {
     const id = this.currId++;
     return this._createEntity(id, ...components);
+  }
+
+  /** Add an externally created Entity
+   *
+   * @param entity - Entity to add
+   */
+  add(entity: Entity): void {
+    this._createEntity(
+      entity.id,
+      ...entity.allComponents().map(entry => entry.component)
+    );
   }
 
   /** Create a new named entity
@@ -80,12 +99,12 @@ export class EntityManager {
    *
    * @return the new entity
    */
-  createNamedEntity(name: string, ...components: Component[]): Entity {
+  createNamed(name: string, ...components: Component[]): Entity {
     if (name in this.entityNameMapping) {
       throw new Error(`Entity with name: ${name} already exists!`);
     }
-    const newEntity = this.createEntity(...components);
-    this.setEntityName(newEntity.id, name);
+    const newEntity = this.create(...components);
+    this.setName(newEntity.id, name);
     return newEntity;
   }
 
@@ -94,7 +113,7 @@ export class EntityManager {
    * @param id - The Id of the entity for the name to be attached to
    * @param name - The Name for the entity
    */
-  setEntityName(id: EntityId, name: string) {
+  setName(id: EntityId, name: string) {
     this.checkEntity(id);
     this.entityNameMapping[name] = id;
   }
@@ -106,11 +125,33 @@ export class EntityManager {
    * @throws {Error} If entity with id doesn't exist
    */
   get(id: EntityId): Entity | never {
-    if (!this.exists(id)) {
-      throw Error(`Entity with id: ${id} doesn't exist`);
-    } else {
-      return this.entities[id];
+    this.checkEntity(id);
+    return this.entities[id];
+  }
+
+  /** Get a component from an entity
+   */
+  getComponent<T_Constructor extends ComponentConstructor>(
+    id: EntityId,
+    type: T_Constructor
+  ) {
+    this.checkEntity(id);
+    return this.entities[id].has(type)
+      ? this.entities[id].component(type)
+      : undefined;
+  }
+
+  /** Get a component from an entity by constructor name
+   */
+  getComponentByName(id: EntityId, componentName: string) {
+    const type = this.componentConstructorNameRegistry.get(componentName);
+    if (!type) {
+      throw Error(`Component name: ${componentName} is not registered!`);
     }
+    this.checkEntity(id);
+    return this.entities[id].has(type)
+      ? this.entities[id].component(type)
+      : undefined;
   }
 
   /** Get an existing entity by its name
@@ -310,10 +351,11 @@ export class EntityManager {
       this.removeComponent(entityId, componentType, false);
     }
     const otherComponents = this.excludeComponents(entityId, [componentType]);
-    this.entities[entityId] = new Entity(entityId, [
+    this.entities[entityId] = new Entity(
+      entityId,
       ...otherComponents,
       component
-    ]);
+    );
     this.housekeepAddComponent(entityId, component);
   }
 
@@ -354,7 +396,7 @@ export class EntityManager {
       const toRemove = this.entities[entityId].component(type);
       this.entities[entityId] = new Entity(
         entityId,
-        this.excludeComponents(entityId, [type])
+        ...this.excludeComponents(entityId, [type])
       );
       this.housekeepRemoveComponent(entityId, toRemove, notify);
       return true;
@@ -424,10 +466,10 @@ export class EntityManager {
     return this.componentRegistrations.get(type)!;
   }
 
-  /** Completely reset the state of the entity manager to a clean state, clears everything
+  /** Clear all entities, but retain the entity ID count
    */
   clear(): void {
-    this.init();
+    this.init(this.currId);
   }
 
   /** Get the total number of entities currently being managed
@@ -438,7 +480,7 @@ export class EntityManager {
 
   /** Get the state of the ECS as a JSON data structure
    */
-  toData() {
+  export() {
     const data: ECSData = {
       indexed: [],
       entities: {}
@@ -458,6 +500,10 @@ export class EntityManager {
     return data;
   }
 
+  observeInitialisation$() {
+    return this.initialised;
+  }
+
   /** Set the state of the ECS from the data provided
    *
    * @param data JSON representation of the ECS state, usually obtained by the toData() method on an existing instance
@@ -465,7 +511,7 @@ export class EntityManager {
    *
    * @note Doesn't make any consideration for event registrations, these have to be set up manually.
    */
-  fromData(
+  import(
     data: ECSData,
     componentTypes: { [name: string]: new (...args: any[]) => any }
   ): EntityId {
@@ -496,6 +542,7 @@ export class EntityManager {
         );
       }
     }
+    this.initialised.next();
     this.currId = highestId + 1;
     return highestId;
   }
@@ -508,6 +555,9 @@ export class EntityManager {
 
     if (this.componentEntities.get(type) === undefined) {
       this.componentEntities.set(type, new Set<EntityId>());
+    }
+    if (!this.componentConstructorNameRegistry.has(type.name)) {
+      this.componentConstructorNameRegistry.set(type.name, type);
     }
 
     this.componentEntities.get(type)!.add(id);
@@ -583,7 +633,7 @@ export class EntityManager {
   }
 
   private _createEntity(id: EntityId, ...components: Component[]): Entity {
-    const entity = new Entity(id, components);
+    const entity = new Entity(id, ...components);
     this.entities[id] = entity;
     for (const component of components) {
       this.housekeepAddComponent(id, component);

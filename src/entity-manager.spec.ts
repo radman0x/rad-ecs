@@ -1,83 +1,22 @@
 import { Component } from './component';
 import { Entity } from './entity';
 import { ComponentChange, EntityManager, EntityId } from './entity-manager';
-
-interface Coord2 {
-  x: number;
-  y: number;
-}
-
-namespace coord2 {
-  export function equals(lhs: Coord2, rhs: Coord2): boolean {
-    return rhs.x === lhs.x && rhs.y === lhs.y;
-  }
-
-  export function add(lhs: Coord2, rhs: Coord2): Coord2 {
-    return { x: lhs.x + rhs.x, y: lhs.y + rhs.y };
-  }
-
-  export function addTo(to: Coord2, add: Coord2): void {
-    to.x = to.x + add.x;
-    to.y = to.y + add.y;
-  }
-
-  export function subtract(lhs: Coord2, rhs: Coord2): Coord2 {
-    return { x: lhs.x - rhs.x, y: lhs.y - rhs.y };
-  }
-
-  export function subtractFrom(from: Coord2, subtract: Coord2): void {
-    from.x = from.x - subtract.x;
-    from.y = from.y - subtract.y;
-  }
-
-  export function magnitude(Coord2: Coord2): number {
-    return Math.abs(Math.sqrt(Coord2.x ** 2 + Coord2.y ** 2));
-  }
-}
-
-class Position extends Component {
-  public x: number;
-  public y: number;
-
-  constructor(coord: Coord2) {
-    super();
-    this.x = coord.x;
-    this.y = coord.y;
-  }
-
-  hash(): string {
-    return `${this.x},${this.y}`;
-  }
-}
-
-class Renderable extends Component {
-  constructor(public image: string, public zOrder: number) {
-    super();
-  }
-}
-
-enum Size {
-  FILL
-}
-
-class Physical extends Component {
-  constructor(public size: Size) {
-    super();
-  }
-}
-
-class MoveTo extends Component {
-  constructor(public direction: Coord2) {
-    super();
-  }
-}
+import {
+  Position,
+  Physical,
+  Size,
+  Renderable,
+  MoveTo,
+  coord2
+} from './dummy-components.model';
 
 const ID_NOT_EXIST = 9999999;
+const NAME_NOT_EXIST = 'udeudehtnudeuh';
 
-const SIMPLEST_ECS_DATA = () => ({
+const BASIC_ECS_DATA = () => ({
   indexed: [],
   entities: {
-    0: {
+    11: {
       Position: { x: 1, y: 1 }
     }
   }
@@ -91,7 +30,7 @@ describe('Entity Manager', () => {
       let emptyId: EntityId;
       beforeEach(() => {
         em = new EntityManager();
-        emptyId = em.createEntity().id;
+        emptyId = em.create().id;
       });
       it('should create an empty entity', () => {
         expect(em.count()).toEqual(1);
@@ -112,9 +51,15 @@ describe('Entity Manager', () => {
         expect(em.remove(ID_NOT_EXIST)).toBe(false);
       });
 
-      it('should clear out all existing state when desired', () => {
+      it('should clear out all existing entities', () => {
         em.clear();
         expect(() => em.get(emptyId)).toThrow();
+      });
+
+      it('should continue using the same id count after a clear', () => {
+        em.clear();
+        const newId = em.create().id;
+        expect(newId).toEqual(emptyId + 1);
       });
     });
 
@@ -122,7 +67,7 @@ describe('Entity Manager', () => {
       let initialisedId: EntityId;
       beforeEach(() => {
         em = new EntityManager();
-        initialisedId = em.createEntity(
+        initialisedId = em.create(
           new Position({ x: 7, y: 7 }),
           new Physical(Size.FILL)
         ).id;
@@ -136,7 +81,7 @@ describe('Entity Manager', () => {
       });
 
       it('Removes component list entity', () => {
-        expect(em.remove(initialisedId)).toBeTruthy();
+        expect(em.remove(initialisedId)).toBe(true);
         expect(() => em.get(initialisedId)).toThrow();
         expect(em.matchingIds(Position)).not.toContain(initialisedId);
         expect(em.matchingIds(Physical)).not.toContain(initialisedId);
@@ -144,11 +89,31 @@ describe('Entity Manager', () => {
       });
     });
 
+    describe(`Externally created entities`, () => {
+      it('should add an externally created entity with no components', () => {
+        const id = 77;
+        const externalEntity = new Entity(id);
+        em.add(externalEntity);
+        expect(em.get(id));
+      });
+
+      it('should add externally created entity with components', () => {
+        const id = 88;
+        const externalEntity = new Entity(id, new Position({ x: 1, y: 1 }));
+        em.add(externalEntity);
+        expect(() => em.get(id)).not.toThrow();
+        expect(em.get(id).has(Position));
+        expect(em.get(id).component(Position)).toEqual(
+          new Position({ x: 1, y: 1 })
+        );
+      });
+    });
+
     describe('Manually creating components on entities', () => {
       let manualId: EntityId;
       beforeEach(() => {
         em = new EntityManager();
-        manualId = em.createEntity().id;
+        manualId = em.create().id;
         em.setComponent(manualId, new Position({ x: 1, y: 1 }));
       });
 
@@ -174,11 +139,23 @@ describe('Entity Manager', () => {
         expect(em.removeComponent(manualId, Renderable)).toBe(false);
       });
 
+      it('should throw when trying to retrieve a component from an entity that does not exist', () => {
+        expect(() => em.getComponent(ID_NOT_EXIST, Position)).toThrow();
+      });
+      it('should retrieve a component that exists from an entity', () => {
+        expect(em.getComponent(manualId, Position)).toEqual(
+          new Position({ x: 1, y: 1 })
+        );
+      });
+      it('should retrieve a component that does not exist on an entity', () => {
+        expect(em.getComponent(manualId, Renderable)).toEqual(undefined);
+      });
+
       it('should check whether a component exists on an entity', () => {
         expect(em.hasComponent(manualId, Position)).toBe(true);
         expect(em.hasComponent(manualId, Renderable)).toBe(false);
         const alias = 'some-name';
-        em.setEntityName(manualId, alias);
+        em.setName(manualId, alias);
         expect(em.hasComponent(alias, Position)).toBe(true);
         expect(() => em.hasComponent(ID_NOT_EXIST, Position)).toThrow();
       });
@@ -191,13 +168,33 @@ describe('Entity Manager', () => {
     });
   });
 
+  describe('Retrieving entities by constructor name', () => {
+    let id: EntityId;
+    beforeEach(() => {
+      em = new EntityManager();
+      id = em.create(new Position({ x: 2, y: 2 })).id;
+    });
+    it('should retrieve a component by constructor name', () => {
+      const x = em.getComponentByName(id, Position.name)!;
+      expect(x).toEqual(new Position({ x: 2, y: 2 }));
+    });
+    it('should fail to retrieve a component type that does not exist', () => {
+      expect(() => em.getComponentByName(id, NAME_NOT_EXIST)).toThrow();
+    });
+
+    it('should fail to retrieve a component that the entity does not have', () => {
+      em.create(new Physical(Size.FILL));
+      expect(em.getComponentByName(id, Physical.name)).toEqual(undefined);
+    });
+  });
+
   describe('Retrieving entities by component types', () => {
     beforeEach(() => {
       em = new EntityManager();
-      em.createEntity(new Position({ x: 2, y: 2 }));
-      em.createEntity(new Position({ x: 3, y: 3 }));
-      em.createEntity(new Renderable('', 1));
-      em.createEntity(new Physical(Size.FILL), new Position({ x: 11, y: 11 }));
+      em.create(new Position({ x: 2, y: 2 }));
+      em.create(new Position({ x: 3, y: 3 }));
+      em.create(new Renderable('', 1));
+      em.create(new Physical(Size.FILL), new Position({ x: 11, y: 11 }));
     });
 
     it('Provides entities with 1 matching components', () => {
@@ -221,7 +218,7 @@ describe('Entity Manager', () => {
     });
 
     it('Replaces a component on an entity', () => {
-      const id = em.createEntity(new Position({ x: 5, y: 5 })).id;
+      const id = em.create(new Position({ x: 5, y: 5 })).id;
       em.setComponent(id, new Position({ x: 2, y: 2 }));
       expect(
         coord2.equals(
@@ -238,19 +235,19 @@ describe('Entity Manager', () => {
     beforeEach(() => {
       em = new EntityManager();
       em.indexBy(Position);
-      id1 = em.createEntity(new Position({ x: 0, y: 0 })).id;
+      id1 = em.create(new Position({ x: 0, y: 0 })).id;
       em.setComponent(id1, new Position({ x: 1, y: 1 }));
-      id2 = em.createEntity(new Position({ x: 2, y: 2 })).id;
-      id3 = em.createEntity(new Position({ x: 3, y: 3 })).id;
-      id4 = em.createEntity(new Position({ x: 1, y: 1 })).id;
+      id2 = em.create(new Position({ x: 2, y: 2 })).id;
+      id3 = em.create(new Position({ x: 3, y: 3 })).id;
+      id4 = em.create(new Position({ x: 1, y: 1 })).id;
     });
 
     it('should indicate the number of existing entities with component when triggering indexing', () => {
       const indexEm = new EntityManager();
-      indexEm.createEntity(new Position({ x: 2, y: 2 }));
-      indexEm.createEntity(new Position({ x: 3, y: 3 }));
-      indexEm.createEntity(new Position({ x: 1, y: 1 }));
-      indexEm.createEntity(new Position({ x: 1, y: 1 }));
+      indexEm.create(new Position({ x: 2, y: 2 }));
+      indexEm.create(new Position({ x: 3, y: 3 }));
+      indexEm.create(new Position({ x: 1, y: 1 }));
+      indexEm.create(new Position({ x: 1, y: 1 }));
       expect(indexEm.indexBy(Position)).toEqual({
         uniqueComponentValues: 3,
         totalComponents: 4
@@ -295,13 +292,13 @@ describe('Entity Manager', () => {
     });
 
     it('Retrieves by component value that was replaced', () => {
-      let changed = em.createEntity(new Position({ x: 5, y: 5 }));
+      let changed = em.create(new Position({ x: 5, y: 5 }));
       em.setComponent(changed.id, new Position({ x: 6, y: 6 }));
       expect(em.matchingIndex(new Position({ x: 5, y: 5 })).length).toEqual(0);
     });
 
     it('Retrieves by component that replaces an old one', () => {
-      let changed = em.createEntity(new Position({ x: 5, y: 5 }));
+      let changed = em.create(new Position({ x: 5, y: 5 }));
       em.setComponent(changed.id, new Position({ x: 6, y: 6 }));
       expect(em.matchingIndex(new Position({ x: 6, y: 6 })).length).toEqual(1);
     });
@@ -315,11 +312,11 @@ describe('Entity Manager', () => {
   describe('Executing a lambda on matching components', () => {
     beforeAll(() => {
       em = new EntityManager();
-      em.createEntity(new Position({ x: 1, y: 5 }));
-      em.createEntity(new Position({ x: 1, y: 7 }));
-      em.createEntity(new Position({ x: 1, y: 9 }), new Renderable('aoeu', 1));
-      em.createEntity(new Renderable('uudd', 0), new Physical(Size.FILL));
-      em.createEntity(
+      em.create(new Position({ x: 1, y: 5 }));
+      em.create(new Position({ x: 1, y: 7 }));
+      em.create(new Position({ x: 1, y: 9 }), new Renderable('aoeu', 1));
+      em.create(new Renderable('uudd', 0), new Physical(Size.FILL));
+      em.create(
         new Renderable('uudd', 0),
         new Physical(Size.FILL),
         new Position({ x: 1, y: 1 })
@@ -382,7 +379,7 @@ describe('Entity Manager', () => {
     let existingId: EntityId;
     beforeEach(() => {
       em = new EntityManager();
-      existingId = em.createEntity(new Position({ x: 1, y: 1 })).id;
+      existingId = em.create(new Position({ x: 1, y: 1 })).id;
       triggered = false;
     });
 
@@ -395,7 +392,7 @@ describe('Entity Manager', () => {
           triggered = true;
         }
       );
-      em.createEntity(new Position({ x: 0, y: 0 }));
+      em.create(new Position({ x: 0, y: 0 }));
       expect(triggered).toBeTruthy();
     });
 
@@ -445,7 +442,7 @@ describe('Entity Manager', () => {
     let triggered: boolean;
     beforeEach(() => {
       em = new EntityManager();
-      monitorId = em.createEntity(new Position({ x: 1, y: 2 })).id;
+      monitorId = em.create(new Position({ x: 1, y: 2 })).id;
       triggered = false;
     });
 
@@ -503,7 +500,7 @@ describe('Entity Manager', () => {
     let triggered: boolean;
     beforeEach(() => {
       em = new EntityManager();
-      monitorId = em.createEntity(new Position({ x: 1, y: 2 })).id;
+      monitorId = em.create(new Position({ x: 1, y: 2 })).id;
       triggered = false;
     });
 
@@ -543,7 +540,7 @@ describe('Entity Manager', () => {
     });
 
     it('should create and retrieve an entity by name', () => {
-      const namedEnt = em.createNamedEntity(
+      const namedEnt = em.createNamed(
         'entityName',
         new Position({ x: 1, y: 1 })
       );
@@ -551,18 +548,18 @@ describe('Entity Manager', () => {
     });
 
     it('should set the name for an existing entity', () => {
-      const existId = em.createEntity().id;
+      const existId = em.create().id;
       const name = 'blah';
-      expect(() => em.setEntityName(existId, name)).not.toThrow();
+      expect(() => em.setName(existId, name)).not.toThrow();
       expect(em.getNamed(name).id).toEqual(existId);
     });
 
     it('should throw when setting a name for an entity that does not exist', () => {
-      expect(() => em.setEntityName(ID_NOT_EXIST, 'blah')).toThrow();
+      expect(() => em.setName(ID_NOT_EXIST, 'blah')).toThrow();
     });
 
     it('should create by name and retrieve with id', () => {
-      const namedEnt = em.createNamedEntity(
+      const namedEnt = em.createNamed(
         'entityName',
         new Position({ x: 1, y: 1 })
       );
@@ -577,14 +574,14 @@ describe('Entity Manager', () => {
 
     it('should throw if there is an attempt to create an entity with a name that already exists', () => {
       const repeatedName = 'entityName';
-      em.createNamedEntity(repeatedName, new Position({ x: 1, y: 1 }));
+      em.createNamed(repeatedName, new Position({ x: 1, y: 1 }));
       expect(() =>
-        em.createNamedEntity(repeatedName, new Position({ x: 2, y: 2 }))
+        em.createNamed(repeatedName, new Position({ x: 2, y: 2 }))
       ).toThrow();
     });
 
     it('should include named entity components in normal iterations', () => {
-      em.createNamedEntity('entityName', new Position({ x: 1, y: 1 }));
+      em.createNamed('entityName', new Position({ x: 1, y: 1 }));
       let count = 0;
       em.each((e, p) => {
         ++count;
@@ -593,16 +590,13 @@ describe('Entity Manager', () => {
     });
 
     it('should remove a named entity by id', () => {
-      const id = em.createNamedEntity(
-        'entityName',
-        new Position({ x: 1, y: 1 })
-      ).id;
+      const id = em.createNamed('entityName', new Position({ x: 1, y: 1 })).id;
       em.remove(id);
       expect(() => em.getNamed('entityName')).toThrow();
     });
 
     it('should remove a named entity by name', () => {
-      em.createNamedEntity('entityName', new Position({ x: 1, y: 1 })).id;
+      em.createNamed('entityName', new Position({ x: 1, y: 1 })).id;
       em.removeNamed('entityName');
       expect(() => em.getNamed('entityName')).toThrow();
     });
@@ -612,7 +606,7 @@ describe('Entity Manager', () => {
     });
 
     it('should set a component on a named entity', () => {
-      em.createNamedEntity('entityName');
+      em.createNamed('entityName');
       em.setComponent('entityName', new Position({ x: 7, y: 7 }));
       expect(em.getNamed('entityName').component(Position)).toEqual(
         new Position({ x: 7, y: 7 })
@@ -629,14 +623,14 @@ describe('Entity Manager', () => {
     });
 
     it('should remove a component from a named entity', () => {
-      em.createNamedEntity('entityName', new Position({ x: 7, y: 7 }));
+      em.createNamed('entityName', new Position({ x: 7, y: 7 }));
       em.removeComponent('entityName', Position);
       expect(() => em.getNamed('entityName').component(Position)).toThrow();
     });
 
     it('should monitor a named entity', () => {
       let triggered = false;
-      em.createNamedEntity('entityName');
+      em.createNamed('entityName');
       em.observeNamedEntity$('entityName').subscribe((e: Entity | null) => {
         expect(e).not.toBeUndefined();
         expect(e!.component(Position).x).toEqual(1);
@@ -656,14 +650,21 @@ describe('Entity Manager', () => {
   describe('Whole ECS serialisation', () => {
     it('should produce a data representation of the simplest ECS state', () => {
       const em = new EntityManager();
-      em.createEntity(new Position({ x: 1, y: 1 }));
-      expect(em.toData()).toEqual(SIMPLEST_ECS_DATA());
+      em.create(new Position({ x: 1, y: 1 }));
+      expect(em.export()).toEqual({
+        indexed: [],
+        entities: {
+          0: {
+            Position: { x: 1, y: 1 }
+          }
+        }
+      });
     });
 
     it('should produce a representation of an ECS that indexes on a component type', () => {
       const em = new EntityManager();
       em.indexBy(Position);
-      expect(em.toData()).toEqual({
+      expect(em.export()).toEqual({
         indexed: ['Position'],
         entities: {}
       });
@@ -671,8 +672,8 @@ describe('Entity Manager', () => {
 
     it('should initialise from simple data', () => {
       const em = new EntityManager();
-      const id = 0;
-      em.fromData(SIMPLEST_ECS_DATA(), { Position: Position });
+      const id = 11;
+      em.import(BASIC_ECS_DATA(), { Position: Position });
 
       expect(em.get(id).has(Position)).toBe(true);
       expect(
@@ -684,13 +685,21 @@ describe('Entity Manager', () => {
       expect(em.get(id).component(Position) instanceof Position).toBe(true);
     });
 
+    it('should receive a notification when the ECS is initialised with fresh data', () => {
+      const em = new EntityManager();
+      let initialised = false;
+      em.observeInitialisation$().subscribe(() => (initialised = true));
+      em.import(BASIC_ECS_DATA(), { Position: Position });
+      expect(initialised).toEqual(true);
+    });
+
     it('should roundtrip simple ECS data', () => {
       const fromEm = new EntityManager();
-      const id = fromEm.createEntity(new Position({ x: 1, y: 1 })).id;
-      const data = fromEm.toData();
+      const id = fromEm.create(new Position({ x: 1, y: 1 })).id;
+      const data = fromEm.export();
 
       const toEm = new EntityManager();
-      toEm.fromData(data, { Position });
+      toEm.import(data, { Position });
       expect(
         coord2.equals(
           toEm.get(id).component(Position),
@@ -701,28 +710,28 @@ describe('Entity Manager', () => {
 
     it('should fail to initialise from data if a component in the data does not have a type provided', () => {
       const em = new EntityManager();
-      expect(() => em.fromData(SIMPLEST_ECS_DATA(), {})).toThrow();
+      expect(() => em.import(BASIC_ECS_DATA(), {})).toThrow();
     });
 
     it('should not overwrite entities when creating manually after initialising from data', () => {
       const em = new EntityManager();
-      em.fromData(SIMPLEST_ECS_DATA(), { Position: Position });
+      em.import(BASIC_ECS_DATA(), { Position: Position });
 
-      const newId = em.createEntity(new Position({ x: 7, y: 7 })).id;
+      const newId = em.create(new Position({ x: 7, y: 7 })).id;
       expect(newId).not.toBe(0);
     });
 
     it('should not retain any existing entities after initialisation from data', () => {
       const em = new EntityManager();
-      const id = em.createEntity(new Position({ x: 1, y: 1 })).id;
-      em.fromData({ indexed: [], entities: {} }, {});
+      const id = em.create(new Position({ x: 1, y: 1 })).id;
+      em.import({ indexed: [], entities: {} }, {});
       expect(() => em.get(id)).toThrow();
     });
 
     it('should fail if component to index by is not included in the type index', () => {
       const em = new EntityManager();
       expect(() =>
-        em.fromData({ indexed: ['Something'], entities: {} }, {})
+        em.import({ indexed: ['Something'], entities: {} }, {})
       ).toThrow();
     });
 
@@ -736,35 +745,11 @@ describe('Entity Manager', () => {
         }
       };
       const em = new EntityManager();
-      em.fromData(data, { Position });
+      em.import(data, { Position });
 
       expect(em.matchingIndex(new Position({ x: 7, y: 7 })).length).toEqual(2);
       expect(em.matchingIndex(new Position({ x: 3, y: 3 })).length).toEqual(1);
       expect(em.matchingIndex(new Position({ x: 1, y: 1 })).length).toEqual(0);
     });
-  });
-});
-
-describe('Entity', () => {
-  let e: Entity;
-  beforeAll(() => {
-    e = new Entity(-1, [new Position({ x: 5, y: 5 }), new Physical(Size.FILL)]);
-  });
-
-  it('Reports existence of components', () => {
-    expect(e.has([Position])).toBeTruthy();
-    expect(e.has([Physical])).toBeTruthy();
-    expect(e.has([Renderable])).toBeFalsy();
-  });
-
-  it('Retrieves one component AND accesses', () => {
-    let [c] = e.components(Position);
-    expect(c.x).toEqual(5);
-  });
-
-  it('Retrieves two components AND accesses their data', () => {
-    let [p, y] = e.components(Position, Physical);
-    expect(p.x).toEqual(5);
-    expect(y.size).toEqual(Size.FILL);
   });
 });
