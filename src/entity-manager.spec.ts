@@ -7,7 +7,7 @@ import {
   Size,
   Renderable,
   MoveTo,
-  coord2
+  coord2,
 } from './dummy-components.model';
 
 const ID_NOT_EXIST = 9999999;
@@ -17,9 +17,9 @@ const BASIC_ECS_DATA = () => ({
   indexed: [],
   entities: {
     11: {
-      Position: { x: 1, y: 1 }
-    }
-  }
+      Position: { x: 1, y: 1 },
+    },
+  },
 });
 
 describe('Entity Manager', () => {
@@ -106,6 +106,41 @@ describe('Entity Manager', () => {
         expect(em.get(id).component(Position)).toEqual(
           new Position({ x: 1, y: 1 })
         );
+      });
+    });
+
+    describe('Retrieving components for an entity', () => {
+      let existingId: EntityId;
+      beforeEach(() => {
+        em = new EntityManager();
+        existingId = em.create(
+          new Position({ x: 0, y: 0 }),
+          new Renderable('blah', 1)
+        ).id;
+      });
+
+      it('should retrieve single components', () => {
+        expect(em.getComponent(existingId, Position)).toEqual(
+          new Position({ x: 0, y: 0 })
+        );
+        expect(em.getComponent(existingId, Renderable)).toEqual(
+          new Renderable('blah', 1)
+        );
+      });
+      it('should retrieve multiple components that all exist', () => {
+        expect(em.getComponents(existingId, Position, Renderable)).toEqual([
+          new Position({ x: 0, y: 0 }),
+          new Renderable('blah', 1),
+        ]);
+      });
+
+      it('should retrieve multiple components where some do not exist', () => {
+        em.removeComponent(existingId, Renderable);
+        const test = em.getComponents(existingId, Position, Renderable);
+        expect(em.getComponents(existingId, Position, Renderable)).toEqual([
+          new Position({ x: 0, y: 0 }),
+          undefined,
+        ]);
       });
     });
 
@@ -250,7 +285,7 @@ describe('Entity Manager', () => {
       indexEm.create(new Position({ x: 1, y: 1 }));
       expect(indexEm.indexBy(Position)).toEqual({
         uniqueComponentValues: 3,
-        totalComponents: 4
+        totalComponents: 4,
       });
     });
 
@@ -454,7 +489,9 @@ describe('Entity Manager', () => {
 
     it('should register to observe a component type that does not yet exist on the entity', () => {
       expect(() =>
-        em.observeEntityComponent$(monitorId, Renderable).subscribe(noop => {})
+        em
+          .observeEntityComponent$(monitorId, Renderable)
+          .subscribe((noop) => {})
       ).not.toThrow();
     });
 
@@ -462,7 +499,7 @@ describe('Entity Manager', () => {
       const imageString = 'blah';
       let eId: EntityId;
       let renderable: Renderable | undefined;
-      em.observeEntityComponent$(monitorId, Renderable).subscribe(change => {
+      em.observeEntityComponent$(monitorId, Renderable).subscribe((change) => {
         eId = change.id;
         renderable = change.c;
       });
@@ -474,7 +511,7 @@ describe('Entity Manager', () => {
     it('should receive notifications on component updated', () => {
       let eId: EntityId;
       let position: Position | undefined;
-      em.observeEntityComponent$(monitorId, Position).subscribe(change => {
+      em.observeEntityComponent$(monitorId, Position).subscribe((change) => {
         eId = change.id;
         position = change.c;
       });
@@ -485,7 +522,7 @@ describe('Entity Manager', () => {
 
     it('should receive notifications on component removal', () => {
       let removed = false;
-      em.observeEntityComponent$(monitorId, Position).subscribe(change => {
+      em.observeEntityComponent$(monitorId, Position).subscribe((change) => {
         if (change.c === undefined) {
           removed = true;
         }
@@ -509,7 +546,7 @@ describe('Entity Manager', () => {
     });
 
     it('receives notifications on set component', () => {
-      em.observeEntity$(monitorId).subscribe(e => {
+      em.observeEntity$(monitorId).subscribe((e) => {
         expect(e).not.toBeUndefined();
         expect(e!.component(Position).x).toEqual(3);
         triggered = true;
@@ -519,7 +556,7 @@ describe('Entity Manager', () => {
     });
 
     it('receives notification on component removal', () => {
-      em.observeEntity$(monitorId).subscribe(e => {
+      em.observeEntity$(monitorId).subscribe((e) => {
         expect(e).not.toBeUndefined();
         expect(e!.has(Position)).toBeFalsy();
       });
@@ -527,7 +564,7 @@ describe('Entity Manager', () => {
     });
 
     it('receives notification on entity remove', () => {
-      em.observeEntity$(monitorId).subscribe(e => {
+      em.observeEntity$(monitorId).subscribe((e) => {
         expect(e).toBeUndefined();
       });
       em.remove(monitorId);
@@ -642,7 +679,7 @@ describe('Entity Manager', () => {
 
     it('should throw when trying to monitor a named entity that does not exist', () => {
       expect(() =>
-        em.observeNamedEntity$('does-not-exist').subscribe(e => {})
+        em.observeNamedEntity$('does-not-exist').subscribe((e) => {})
       ).toThrow();
     });
   });
@@ -655,9 +692,9 @@ describe('Entity Manager', () => {
         indexed: [],
         entities: {
           0: {
-            Position: { x: 1, y: 1 }
-          }
-        }
+            Position: { x: 1, y: 1 },
+          },
+        },
       });
     });
 
@@ -666,7 +703,7 @@ describe('Entity Manager', () => {
       em.indexBy(Position);
       expect(em.export()).toEqual({
         indexed: ['Position'],
-        entities: {}
+        entities: {},
       });
     });
 
@@ -741,8 +778,8 @@ describe('Entity Manager', () => {
         entities: {
           0: { Position: { x: 7, y: 7 } },
           1: { Position: { x: 7, y: 7 } },
-          2: { Position: { x: 3, y: 3 } }
-        }
+          2: { Position: { x: 3, y: 3 } },
+        },
       };
       const em = new EntityManager();
       em.import(data, { Position });

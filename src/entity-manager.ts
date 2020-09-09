@@ -88,7 +88,7 @@ export class EntityManager {
   add(entity: Entity): void {
     this._createEntity(
       entity.id,
-      ...entity.allComponents().map(entry => entry.component)
+      ...entity.allComponents().map((entry) => entry.component)
     );
   }
 
@@ -139,6 +139,32 @@ export class EntityManager {
     return this.entities[id].has(type)
       ? this.entities[id].component(type)
       : undefined;
+  }
+
+  /** Get n components from an entity
+   */
+  getComponents<T extends Array<ComponentConstructor>>(
+    id: EntityId,
+    ...types: T
+  ): {
+    [K in keyof T]: T[K] extends ComponentConstructor
+      ? InstanceType<T[K]>
+      : never;
+  };
+  getComponents<T_Constructors extends Array<ComponentConstructor>>(
+    id: EntityId,
+    ...types: T_Constructors
+  ) {
+    this.checkEntity(id);
+    const out = [];
+    for (const type of types) {
+      out.push(
+        this.entities[id].has(type)
+          ? this.entities[id].component(type)
+          : undefined
+      );
+    }
+    return out;
   }
 
   /** Get a component from an entity by constructor name
@@ -241,7 +267,7 @@ export class EntityManager {
     this.componentValueEntities.set(componentType, valueIndex);
     return {
       uniqueComponentValues: valueIndex.countKeys(),
-      totalComponents: count
+      totalComponents: count,
     };
   }
 
@@ -307,7 +333,7 @@ export class EntityManager {
   ): void {
     this.matchingIds(...types).forEach((id: EntityId) => {
       let entity = this.entities[id];
-      let instances = types.map(t => entity.component(t)) as T;
+      let instances = types.map((t) => entity.component(t)) as T;
       callback(entity, ...instances);
     });
   }
@@ -429,7 +455,7 @@ export class EntityManager {
   ): Observable<ComponentChange<InstanceType<T_Constructor>>> {
     this.checkEntity(id);
     return this.observeComponentType$(type).pipe(
-      filter(change => change.id === id)
+      filter((change) => change.id === id)
     );
   }
 
@@ -483,7 +509,7 @@ export class EntityManager {
   export() {
     const data: ECSData = {
       indexed: [],
-      entities: {}
+      entities: {},
     };
 
     for (const [id, entity] of Object.entries(this.entities)) {
@@ -494,7 +520,7 @@ export class EntityManager {
     }
 
     data.indexed = Array.from(this.componentValueEntities.keys()).map(
-      componentConstructor => componentConstructor.name
+      (componentConstructor) => componentConstructor.name
     );
 
     return data;
@@ -577,7 +603,7 @@ export class EntityManager {
       >).next({
         id: id,
         e: this.entities[id],
-        c: component
+        c: component,
       });
     }
   }
@@ -606,7 +632,7 @@ export class EntityManager {
           ComponentChange<Component>
         >).next({
           id: id,
-          e: entityValue
+          e: entityValue,
         });
       }
     }
