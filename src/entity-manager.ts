@@ -138,7 +138,7 @@ export class EntityManager {
     this.checkEntity(id);
     return this.entities[id].has(type)
       ? (this.entities[id].component(type).clone() as InstanceType<
-          ComponentConstructor
+          T_Constructor
         >)
       : undefined;
   }
@@ -162,9 +162,7 @@ export class EntityManager {
     for (const type of types) {
       out.push(
         this.entities[id].has(type)
-          ? (this.entities[id].component(type).clone() as InstanceType<
-              ComponentConstructor
-            >)
+          ? this.entities[id].component(type).clone()
           : undefined
       );
     }
