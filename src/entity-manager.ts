@@ -137,7 +137,9 @@ export class EntityManager {
   ) {
     this.checkEntity(id);
     return this.entities[id].has(type)
-      ? this.entities[id].component(type)
+      ? (this.entities[id].component(type).clone() as InstanceType<
+          ComponentConstructor
+        >)
       : undefined;
   }
 
@@ -160,7 +162,9 @@ export class EntityManager {
     for (const type of types) {
       out.push(
         this.entities[id].has(type)
-          ? this.entities[id].component(type)
+          ? (this.entities[id].component(type).clone() as InstanceType<
+              ComponentConstructor
+            >)
           : undefined
       );
     }
@@ -176,7 +180,7 @@ export class EntityManager {
     }
     this.checkEntity(id);
     return this.entities[id].has(type)
-      ? this.entities[id].component(type)
+      ? this.entities[id].component(type).clone()
       : undefined;
   }
 
@@ -259,7 +263,7 @@ export class EntityManager {
     let typeEntities = this.componentEntities.get(componentType);
     if (typeEntities) {
       for (const id of typeEntities) {
-        const component = this.entities[id].component(componentType);
+        const component = this.entities[id].component(componentType).clone();
         valueIndex.add(component, id);
         ++count;
       }
@@ -370,6 +374,7 @@ export class EntityManager {
     id: EntityId | string,
     component: T
   ): void | never {
+    component = component.clone() as T;
     const entityId = typeof id === 'string' ? this.entityNameMapping[id] : id;
     this.checkEntity(entityId);
     let componentType = Object.getPrototypeOf(component).constructor;
@@ -380,7 +385,7 @@ export class EntityManager {
     this.entities[entityId] = new Entity(
       entityId,
       ...otherComponents,
-      component
+      component.clone() as T
     );
     this.housekeepAddComponent(entityId, component);
   }
@@ -603,7 +608,7 @@ export class EntityManager {
       >).next({
         id: id,
         e: this.entities[id],
-        c: component,
+        c: component.clone(),
       });
     }
   }
