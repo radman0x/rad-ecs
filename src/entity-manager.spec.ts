@@ -691,7 +691,7 @@ describe('Entity Manager', () => {
       expect(em.export()).toEqual({
         indexed: [],
         entities: {
-          0: {
+          1: {
             Position: { x: 1, y: 1 },
           },
         },

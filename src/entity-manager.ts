@@ -57,7 +57,7 @@ export class EntityManager {
     this.init();
   }
 
-  private init(idStart = 0): void {
+  private init(idStart = 1): void {
     this.currId = idStart;
     this.entities = {};
     this.entityNameMapping = {};
@@ -137,9 +137,9 @@ export class EntityManager {
   ) {
     this.checkEntity(id);
     return this.entities[id].has(type)
-      ? (this.entities[id].component(type).clone() as InstanceType<
-          T_Constructor
-        >)
+      ? (this.entities[id]
+          .component(type)
+          .clone() as InstanceType<T_Constructor>)
       : undefined;
   }
 
