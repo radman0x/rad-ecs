@@ -182,6 +182,24 @@ export class EntityManager {
       : undefined;
   }
 
+  setComponentByName(
+    id: EntityId,
+    componentName: string,
+    component: Component
+  ) {
+    const type = this.componentConstructorNameRegistry.get(componentName);
+    if (!type) {
+      throw Error(`Component name: ${componentName} is not registered!`);
+    }
+    this.checkEntity(id);
+    if (this.entities[id].has(type)) {
+      this.removeComponent(id, type, false);
+    }
+    const otherComponents = this.excludeComponents(id, [type]);
+    this.entities[id] = new Entity(id, ...otherComponents, component.clone());
+    this.housekeepAddComponent(id, component);
+  }
+
   /** Get an existing entity by its name
    *
    * @param name - Name of the entity to retrieve
@@ -601,9 +619,11 @@ export class EntityManager {
 
     const constructor = component.constructor as ComponentConstructor;
     if (this.componentRegistrations.has(constructor)) {
-      (this.componentRegistrations.get(constructor) as Subject<
-        ComponentChange<Component>
-      >).next({
+      (
+        this.componentRegistrations.get(constructor) as Subject<
+          ComponentChange<Component>
+        >
+      ).next({
         id: id,
         e: this.entities[id],
         c: component.clone(),
@@ -631,9 +651,11 @@ export class EntityManager {
 
       const constructor = component.constructor as ComponentConstructor;
       if (this.componentRegistrations.has(constructor)) {
-        (this.componentRegistrations.get(constructor) as Subject<
-          ComponentChange<Component>
-        >).next({
+        (
+          this.componentRegistrations.get(constructor) as Subject<
+            ComponentChange<Component>
+          >
+        ).next({
           id: id,
           e: entityValue,
         });

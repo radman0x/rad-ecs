@@ -223,6 +223,27 @@ describe('Entity Manager', () => {
     });
   });
 
+  describe('Setting entities by constructor name', () => {
+    let id: EntityId;
+    beforeEach(() => {
+      em = new EntityManager();
+      em.create(new Position({ x: 0, y: 0 })).id;
+      id = em.create().id;
+    });
+    it('should set a component by constructor name', () => {
+      em.setComponentByName(id, Position.name, new Position({ x: 2, y: 2 }))!;
+      expect(em.hasComponent(id, Position)).toBe(true);
+      const retrieve = em.getComponent(id, Position);
+      expect(retrieve).toEqual({ x: 2, y: 2 });
+      expect(retrieve instanceof Position).toBe(true);
+    });
+    it('should fail to set a component type that has not yet been registered', () => {
+      expect(() =>
+        em.setComponentByName(id, NAME_NOT_EXIST, new Physical(Size.FILL))
+      ).toThrow();
+    });
+  });
+
   describe('Retrieving entities by component types', () => {
     beforeEach(() => {
       em = new EntityManager();
