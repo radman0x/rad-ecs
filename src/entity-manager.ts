@@ -81,6 +81,15 @@ export class EntityManager {
     return this._createEntity(id, ...components);
   }
 
+  createClone(id: EntityId): Entity {
+    return this._createEntity(
+      this.currId++,
+      ...this.get(id)
+        .allComponents()
+        .map((entry) => entry.component)
+    );
+  }
+
   /** Add an externally created Entity
    *
    * @param entity - Entity to add

@@ -89,6 +89,30 @@ describe('Entity Manager', () => {
       });
     });
 
+    describe('Cloned entities', () => {
+      let origId: EntityId;
+      beforeEach(() => {
+        em = new EntityManager();
+        origId = em.create(
+          new Position({ x: 7, y: 7 }),
+          new Physical(Size.FILL)
+        ).id;
+      });
+
+      it('should throw if an entity with the provided id does not exist', () => {
+        expect(() => em.createClone(ID_NOT_EXIST)).toThrow();
+      });
+
+      it('should clone an existing entity correctly', () => {
+        const cloned = em.createClone(origId);
+        expect(cloned.id).not.toEqual(origId);
+        expect(cloned.components(Position, Physical)).toEqual([
+          { x: 7, y: 7 },
+          { size: Size.FILL },
+        ]);
+      });
+    });
+
     describe(`Externally created entities`, () => {
       it('should add an externally created entity with no components', () => {
         const id = 77;
