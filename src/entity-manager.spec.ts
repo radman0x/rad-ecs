@@ -80,6 +80,19 @@ describe('Entity Manager', () => {
         expect(em.matchingIds(Physical, Position)).toContain(initialisedId);
       });
 
+      it('Creates entity with undefined components in component list', () => {
+        initialisedId = em.create(
+          new Position({ x: 7, y: 7 }),
+          undefined,
+          new Physical(Size.FILL),
+          undefined
+        ).id;
+        expect(() => em.get(initialisedId)).not.toThrow();
+        expect(em.matchingIds(Position)).toContain(initialisedId);
+        expect(em.matchingIds(Physical)).toContain(initialisedId);
+        expect(em.matchingIds(Physical, Position)).toContain(initialisedId);
+      });
+
       it('Removes component list entity', () => {
         expect(em.remove(initialisedId)).toBe(true);
         expect(() => em.get(initialisedId)).toThrow();

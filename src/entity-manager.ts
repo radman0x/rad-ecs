@@ -76,9 +76,12 @@ export class EntityManager {
    * @return the new entity
    *
    */
-  create(...components: Component[]): Entity {
+  create(...components: (Component | undefined)[]): Entity {
     const id = this.currId++;
-    return this._createEntity(id, ...components);
+    return this._createEntity(
+      id,
+      ...components.filter((c): c is Component => c !== undefined)
+    );
   }
 
   createClone(id: EntityId): Entity {
